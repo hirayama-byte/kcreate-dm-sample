@@ -46,6 +46,16 @@
   td.ed:hover { background: #f8fafc; box-shadow: inset 0 0 0 1px var(--line); }
   td.ed input { width: 100%; height: 30px; padding: 0 8px; font-size: 13px; }
   td .sel { height: 30px; font-size: 12.5px; max-width: 120px; }
+  /* 配信一覧（PC）: KPI と「件名で探す」のバーまでを固定し、表だけをスクロールさせる */
+  @media (min-width: 901px) {
+    .main:has(#list:not(.hide)) { height: 100vh; display: flex; flex-direction: column; }
+    .main:has(#list:not(.hide)) > main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 24px; }
+    #list:not(.hide) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #list .kpis { flex: none; }
+    #list > .card { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    #list .tbl { flex: 0 1 auto; min-height: 0; overflow: auto; }
+    #list thead th { z-index: 1; }
+  }
   /* 宛先リスト（PC）: 検索バーまでを固定し、表だけをスクロールさせる */
   @media (min-width: 901px) {
     .main:has(#recipients:not(.hide)) { height: 100vh; display: flex; flex-direction: column; }
