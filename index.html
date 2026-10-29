@@ -163,6 +163,15 @@
     main { padding: 16px; } .topbar { padding: 0 16px; }
     .kpis { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: minmax(0, 1fr); }
   }
+
+  /* 他のツールへのリンク（左下・新しいタブで開く） */
+  .tools { border-top: 1px solid var(--side-line); padding: 8px 10px 6px; }
+  .tools .tools-h { padding: 6px 12px 4px; font-size: 10.5px; letter-spacing: .14em; color: #64748b; font-family: var(--mono); text-transform: uppercase; }
+  .tools a { display: flex; align-items: center; gap: 10px; color: var(--side-text); text-decoration: none; font-size: 13px; padding: 7px 12px; border-radius: 8px; }
+  .tools a:hover { background: var(--side-2); color: var(--side-hi); }
+  .tools a svg { width: 16px; height: 16px; flex: none; opacity: .85; }
+  .tools a .ext { margin-left: auto; font-size: 11px; color: #64748b; }
+  @media (max-width: 900px) { .tools { display: flex; gap: 4px; padding: 6px 10px 10px; border-top: 0; overflow-x: auto; } .tools .tools-h { display: none; } .tools a { padding: 6px 10px; white-space: nowrap; } .tools a .ext { display: none; } }
 </style>
 </head>
 <body>
@@ -177,6 +186,7 @@
       <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>署名・設定</button>
     </nav>
     <div id="foldersWrap" class="hide"><div class="side-sec">宛先の担当</div><div id="folders"></div></div><div class="spacer" id="sideSpacer"></div>
+    <div class="tools"><div class="tools-h">他のツール</div><a href="https://hirayama-byte.github.io/kcreate-qr-sample/" target="_blank" rel="noopener" title="QRコード管理を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v7h-7"/></svg>QRコード管理<span class="ext">↗</span></a><a href="https://script.google.com/macros/s/AKfycbyR5vFkZm9bwKSyN2lZvcZcUUim_p-zxiiIx22jHiU8TRB81ZxAtyjvB6dtFjg-_GxH/exec" target="_blank" rel="noopener" title="見積作成を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>見積作成<span class="ext">↗</span></a></div>
     <button class="me" id="meBtn"><span class="avatar" id="meAv">?</span><span><span id="meName">名前を登録</span><small id="meMail"></small></span><span class="edit-ico">変更</span></button>
   </aside>
   <div class="main">
@@ -506,7 +516,8 @@ window.HtmlService = {};
 // 開封・クリック・配信停止の記録は Cloudflare Worker（worker/）。WORKER_TOKEN は Secret.gs
 
 var TZ = 'Asia/Tokyo';
-var SHEET_ID = ''; // 一斉DM管理データ（setup() を1回実行すると作られる。Script Properties の SHEET_ID が優先）
+var SHEET_ID = ''; // 一斉DM管理データ（このスクリプトの親スプレッドシート・2026-10-29 作成）。Script Properties の SHEET_ID が優先
+var ADMIN_EMAIL = 'hirayama@k-create.co.jp'; // 最初の管理者（admins シートに1人もいないときに入れる）
 var WORKER_URL = 'https://kcreate-dm.k-create.workers.dev';
 var TRACK_URL = WORKER_URL + '/'; // メールに入れる記録用URLの頭（settings の track_url で上書き可）
 var CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -546,7 +557,7 @@ function setup() {
   ensureSheet_(ss, 'sends', SEND_HEAD);
   ss.getSheetByName('sends').getRange('C:C').setNumberFormat('@');
   var admins = ensureSheet_(ss, 'admins', ['email']);
-  if (admins.getLastRow() < 2) admins.appendRow([Session.getEffectiveUser().getEmail()]);
+  if (admins.getLastRow() < 2) admins.appendRow([ADMIN_EMAIL || Session.getEffectiveUser().getEmail()]);
   ensureSheet_(ss, 'members', MEMBER_HEAD);
   var st = ensureSheet_(ss, 'settings', ['key', 'value']);
   if (st.getLastRow() < 2) st.getRange(2, 1, DEFAULT_SETTINGS.length, 2).setValues(DEFAULT_SETTINGS);
@@ -1120,7 +1131,7 @@ function listCampaignSummaries() {
   return list;
 }
 
-// 記録サービス（Cloudflare Worker）の合言葉。本番はエディタで差し替える（GitHub・サンプル版には出さない）
+// 記録サービス（Cloudflare Worker kcreate-dm）の合言葉。wrangler secret put API_TOKEN と同じ値（GitHub・サンプル版には出さない）
 var WORKER_TOKEN = 'test-token';
 </script>
 <script>// サンプルデータ（架空・宛先 約120件・8人・配信 7件）と google.script.run のモック
