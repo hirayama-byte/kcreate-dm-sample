@@ -133,7 +133,10 @@
   .hint { font-size: 12px; color: var(--muted); line-height: 1.7; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
   .chip { font: inherit; font-size: 12px; font-family: var(--mono); background: var(--accent-weak); color: var(--accent); border: 1px solid #99f6e4; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
-  .toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; padding: 6px 8px; background: #f8fafc; }
+  .toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; padding: 6px 8px; background: #f8fafc; position: sticky; top: 60px; z-index: 4; }
+  .toolbar .hl { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #cbd5e1; cursor: pointer; padding: 0; }
+  .toolbar .hl.none { background: repeating-linear-gradient(45deg, #fff 0 4px, #e2e8f0 4px 8px); }
+  .toolbar .lbl { font-size: 11px; color: var(--muted); }
   .toolbar button.tb { font: inherit; font-size: 12.5px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; color: var(--text); }
   .toolbar button.tb:hover { background: #f1f5f9; }
   .toolbar select { height: 28px; font-size: 12.5px; padding: 0 6px; }
@@ -141,7 +144,7 @@
   .toolbar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
   .toolbar label.pick { position: relative; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
   .toolbar label.pick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-  .editor { border: 1px solid var(--line); border-radius: 0 0 8px 8px; background: #fff; padding: 10px 12px; min-height: 240px; line-height: 1.5; font-size: 14px; outline: none; overflow: auto; }
+  .editor { border: 1px solid var(--line); border-radius: 0 0 8px 8px; background: #fff; padding: 10px 12px; min-height: 240px; max-height: calc(100vh - 320px); line-height: 1.5; font-size: 14px; outline: none; overflow: auto; } /* 本文だけがスクロールし、ツールバーは見えたまま */
   .editor:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
   .editor:empty::before { content: attr(data-ph); color: var(--faint); }
   .editor.sig { min-height: 120px; }
@@ -242,7 +245,7 @@
       <section id="compose" class="hide">
         <div class="grid2">
           <div>
-            <div class="card" style="margin-bottom:18px"><div class="card-h"><h2 id="cTitle">新しい配信</h2><span class="sp"></span><span class="tag draft" id="cStatus">下書き</span></div>
+            <div class="card" style="margin-bottom:18px"><div class="card-h"><h2 id="cTitle">新しい配信</h2><span class="sp"></span><select id="cLoad" style="max-width:260px"><option value="">読み込む（下書き・過去の配信）…</option></select><span class="tag draft" id="cStatus">下書き</span></div>
               <div class="card-b">
                 <div class="field"><label>件名</label><input id="cSubject" type="text" placeholder="例: 【くれよん12月号】年末年始の集客にご活用ください"></div>
                 <div class="field"><label>宛名の形（{会社名}{氏名}様 の出し方）</label><select id="cAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select><div class="hint">苗字は宛先リストの「姓」の欄です（姓と名が1つの欄に入っている古いデータは、最初の空白で分けます）。いつもの形は「署名・設定」で既定にできます。</div></div>
@@ -274,7 +277,7 @@
         <div class="notice">担当者の代わりに、<b>全員分の配信をまとめて準備</b>します。準備した配信は各担当者の「配信一覧」に <span class="tag ready">送信待ち</span> として並び、<b>担当者本人のアドレス・担当者名・署名</b>で送られます（本人がボタンを押すか、本人が「自動送信」をオンにしていれば毎朝自動で）。送信数も担当者ごとに数えられます。</div>
         <div class="grid2">
           <div>
-            <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>件名と本文（全員共通）</h2></div>
+            <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>件名と本文（全員共通）</h2><span class="sp"></span><select id="bLoad" style="max-width:260px"><option value="">読み込む（下書き・過去の配信）…</option></select></div>
               <div class="card-b">
                 <div class="field"><label>件名</label><input id="bSubject" type="text" placeholder="例: 【くれよん12月号】年末年始の集客にご活用ください"></div>
                 <div class="field"><label>宛名の形（全員共通）</label><select id="bAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select></div>
@@ -817,6 +820,7 @@ function sanitize_(html) {
       if (k === 'font-size' && /^\d{1,2}(\.\d+)?(px|pt)$/.test(v)) keep.push('font-size:' + v);
       if (k === 'text-decoration' && /underline/.test(v)) keep.push('text-decoration:underline');
       if (k === 'font-weight' && /bold|[6-9]00/.test(v)) keep.push('font-weight:bold');
+      if ((k === 'background-color' || k === 'background') && /^(#[0-9a-f]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\))$/i.test(v)) keep.push('background-color:' + v); // 文字の下色（マーカー）
     });
     return '<' + tag + (keep.length ? ' style="' + keep.join(';') + '"' : '') + '>';
   });
@@ -1309,7 +1313,8 @@ function show(tab) {
   $('title').textContent = TITLES[tab]; $('crumb').textContent = '';
   if (tab === 'list') loadList();
   if (tab === 'recipients') loadRecs();
-  if (tab === 'compose') { loadRecs().then(renderPick); renderPreview(); }
+  if (tab === 'compose') { loadRecs().then(renderPick); renderPreview(); fillLoadSel('cLoad'); }
+  if (tab === 'bulk') fillLoadSel('bLoad');
   if (tab === 'settings') renderSettings();
   if (tab === 'bulk') { loadRecs().then(renderBulk); }
 }
@@ -1421,17 +1426,21 @@ $('backBtn').onclick = function () { show('list'); };
 $('copyBtn').onclick = function () { var c = S.result.campaign; newCompose(); $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; show('compose'); };
 
 // ---------- 書式つき編集欄（本文・署名で共用）----------
-var SIZES = [['', '文字サイズ'], ['12px', '小'], ['14px', '標準'], ['17px', '大'], ['21px', '特大']];
+var SIZES = [['', '文字サイズ'], ['11px', '極小'], ['12px', '小'], ['14px', '標準'], ['16px', 'やや大'], ['18px', '大'], ['21px', '特大'], ['26px', '極大']];
+// 文字の下色（マーカー）: 文字が読める薄いパステル
+var HILITES = [['#fff3b0', '黄'], ['#ffd6e0', '桃'], ['#d7f0ff', '水'], ['#dff5d8', '緑'], ['#eadcf8', '紫'], ['#ffe4cc', '橙']];
 var COLORS = ['#222222', '#dc2626', '#2563eb', '#16a34a', '#d97706', '#7c3aed'];
 function setupEditor(id) {
   var ed = $(id), tb = document.querySelector('.toolbar[data-for=' + id + ']');
   tb.innerHTML = '<select class="tbSize">' + SIZES.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</select><span class="sep"></span>' +
     COLORS.map(function (c) { return '<button class="sw" data-color="' + c + '" style="background:' + c + '" title="文字色"></button>'; }).join('') +
     '<label class="pick">他の色<input type="color" class="tbColor" value="#0d9488"></label><span class="sep"></span>' +
+    '<span class="lbl">下色</span>' + HILITES.map(function (c) { return '<button class="hl" data-hl="' + c[0] + '" style="background:' + c[0] + '" title="下色: ' + c[1] + '"></button>'; }).join('') + '<button class="hl none" data-hl="" title="下色を消す"></button><span class="sep"></span>' +
     '<button class="tb" data-cmd="bold"><b>B</b> 太字</button><button class="tb" data-cmd="underline"><u>U</u> 下線</button><span class="sep"></span><button class="tb" data-cmd="removeFormat">書式を消す</button>';
   function exec(cmd, val) { ed.focus(); document.execCommand('styleWithCSS', false, true); document.execCommand(cmd, false, val); normalize(ed); ed.dispatchEvent(new Event('input')); }
   tb.querySelector('.tbSize').onchange = function () { var v = this.value; this.value = ''; if (!v) return; exec('fontSize', '7'); ed.querySelectorAll('font[size="7"], span[style*="xxx-large"]').forEach(function (f) { if (f.tagName === 'FONT') { var sp = document.createElement('span'); if (f.color) sp.style.color = f.color; while (f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); f = sp; } f.style.fontSize = v; }); ed.dispatchEvent(new Event('input')); }; // 他の書式（太字・色）は残したままサイズだけ変える
   tb.querySelectorAll('.sw').forEach(function (b) { b.onclick = function () { exec('foreColor', b.dataset.color); }; });
+  tb.querySelectorAll('.hl').forEach(function (b) { b.onclick = function () { exec('hiliteColor', b.dataset.hl || 'transparent'); ed.querySelectorAll('[style*="background-color: transparent"], [style*="background-color: initial"]').forEach(function (x) { x.style.backgroundColor = ''; }); ed.dispatchEvent(new Event('input')); }; });
   tb.querySelector('.tbColor').oninput = function () { exec('foreColor', this.value); };
   tb.querySelectorAll('button.tb').forEach(function (b) { b.onclick = function () { exec(b.dataset.cmd); }; });
   tb.querySelectorAll('button').forEach(function (b) { b.onmousedown = function (e) { e.preventDefault(); }; }); // 選択範囲を消さない
@@ -1458,6 +1467,31 @@ function newCompose() {
   $('delDraftBtn').classList.add('hide');
   renderLinks(); renderPreview();
 }
+// 「読み込む」の選択肢（自分が見られる配信。新しい順）
+function fillLoadSel(id) {
+  var sel = $(id); if (!sel) return;
+  function render() {
+    var ST = { draft: '下書き', ready: '送信待ち', sending: '送信中', sent: '送信済み' };
+    sel.innerHTML = '<option value="">読み込む（下書き・過去の配信）…</option>' + S.camps.map(function (c) { return '<option value="' + esc(c.id) + '">' + ST[c.status] + '・' + esc(fmtD(c.status === 'draft' ? c.created : c.sentAt || c.created)) + '　' + esc(c.subject) + '</option>'; }).join('');
+  }
+  if (S.camps.length) render(); else call('listCampaigns').then(function (list) { S.camps = list; render(); }).catch(function () {});
+}
+// 下書きは続きとして開く。送信済み・送信待ちは中身をコピーして新しい配信にする
+function loadInto(target, id) {
+  var sel = $(target); sel.value = '';
+  call('getCampaign', id).then(function (c) {
+    if (target === 'cLoad') {
+      if (c.status === 'draft' && c.ownerEmail === S.me.email) { S.compose = { id: c.id, sel: {} }; $('cTitle').textContent = '下書きの続き'; $('delDraftBtn').classList.remove('hide'); }
+      else { S.compose = { id: '', sel: {} }; $('cTitle').textContent = '「' + c.subject.slice(0, 20) + (c.subject.length > 20 ? '…' : '') + '」を元に新しい配信'; $('delDraftBtn').classList.add('hide'); }
+      $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; renderLinks(); renderPreview();
+    } else {
+      $('bSubject').value = c.subject; edSet('bBody', c.body); $('bAddr').value = c.addrStyle || 'full'; renderBulkPv();
+    }
+    toast('読み込みました');
+  }).catch(fail);
+}
+$('cLoad').onchange = function () { if (this.value) loadInto('cLoad', this.value); };
+$('bLoad').onchange = function () { if (this.value) loadInto('bLoad', this.value); };
 function openCompose(id) {
   call('getCampaign', id).then(function (c) {
     S.compose = { id: c.id, sel: {} };
