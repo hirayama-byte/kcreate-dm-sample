@@ -217,8 +217,8 @@
         <div class="card">
           <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="listQ" type="text" placeholder="件名で探す"></div>
             <select id="listOwner" class="hide"><option value="">担当: 全員</option></select>
-            <span class="count" id="listCount"></span><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
-          <div class="tbl"><table><thead><tr><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th></tr></thead><tbody id="listBody"></tbody></table></div>
+            <span class="count" id="listCount"></span><button class="btn danger hide" id="listDel">選択を削除</button><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
+          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="listAllCk" style="height:auto" title="表示中を全部選ぶ"></th><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th></tr></thead><tbody id="listBody"></tbody></table></div>
           <div class="empty hide" id="listEmpty">まだ配信がありません。「＋ 新しい配信」から作れます</div>
         </div>
       </section>
@@ -412,6 +412,8 @@
   function Spreadsheet(id, name) { this.id = id; this.name = name; this.sheets = [new Sheet('シート1')]; }
   Spreadsheet.prototype.getId = function () { return this.id; };
   Spreadsheet.prototype.getUrl = function () { return 'https://docs.google.com/spreadsheets/d/' + this.id; };
+  Spreadsheet.prototype.getSpreadsheetTimeZone = function () { return this.tz || 'GMT'; };
+  Spreadsheet.prototype.setSpreadsheetTimeZone = function (tz) { this.tz = tz; };
   Spreadsheet.prototype.getSheetByName = function (n) { return this.sheets.filter(function (s) { return s.name === n; })[0] || null; };
   Spreadsheet.prototype.insertSheet = function (n) { var s = new Sheet(n); this.sheets.push(s); return s; };
   Spreadsheet.prototype.deleteSheet = function (s) { this.sheets.splice(this.sheets.indexOf(s), 1); };
@@ -457,7 +459,8 @@
         getEffectiveUser: function () { return { getEmail: function () { return opts.owner || 'owner@k-create.co.jp'; } }; }
       },
       Utilities: { formatDate: function (d, tz, f) {
-        var t = new Date(d.getTime() + 9 * 3600000);
+        var off = /^(GMT|UTC|Etc\/)/i.test(String(tz || '')) ? 0 : 9; // 日本時間（+9）か GMT（0）だけ区別する簡易版
+        var t = new Date(d.getTime() + off * 3600000);
         return f.replace('yyyy', t.getUTCFullYear()).replace('MM', pad(t.getUTCMonth() + 1)).replace('dd', pad(t.getUTCDate()))
           .replace('HH', pad(t.getUTCHours())).replace('mm', pad(t.getUTCMinutes()));
       } },
@@ -594,6 +597,36 @@ function ensureSheet_(ss, name, head) {
   return sh;
 }
 
+// ---------- 日時のずれ対策（2026-10-30） ----------
+// clasp で作ったシートはタイムゾーンが GMT で、「2026-10-30 13:39」と書いた文字が GMT の日時に変換され、画面では +9時間（22:39）になっていた。
+// 対処: ①シートのタイムゾーンを日本に ②日時の列は文字のまま保存（表示形式 @）③すでに日時になっている値は、元の文字に戻して書き直す。Script Properties の tz_fixed で1回だけ
+var DATE_COLS = { recipients: [8, 9], campaigns: [6, 7], sends: [8] }; // created/updated, created/sent_at, sent_at
+function fixTimeZone_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('tz_fixed') === '1') return;
+  var ss = ss_();
+  var oldTz = ss.getSpreadsheetTimeZone ? ss.getSpreadsheetTimeZone() : TZ;
+  Object.keys(DATE_COLS).forEach(function (name) {
+    var sh = ss.getSheetByName(name); if (!sh) return;
+    DATE_COLS[name].forEach(function (col) {
+      var n = sh.getLastRow();
+      var rng = sh.getRange(1, col, Math.max(n, 1), 1);
+      rng.setNumberFormat('@');
+      if (n < 2) return;
+      var r2 = sh.getRange(2, col, n - 1, 1), vals = r2.getValues(), changed = false;
+      vals = vals.map(function (row) {
+        var v = row[0];
+        if (v instanceof Date) { changed = true; return [Utilities.formatDate(v, oldTz, 'yyyy-MM-dd HH:mm')]; } // 変換前に書いた文字に戻る
+        return [v];
+      });
+      if (changed) r2.setValues(vals);
+    });
+  });
+  if (ss.setSpreadsheetTimeZone) ss.setSpreadsheetTimeZone(TZ);
+  props.setProperty('tz_fixed', '1');
+  memo_ = {};
+}
+
 // ---------- 共通 ----------
 function ss_() { return SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID') || SHEET_ID); }
 function sheet_(name) { return ss_().getSheetByName(name); }
@@ -653,6 +686,7 @@ function init() {
   var email = myEmail_();
   if (!email) throw new Error('ログイン情報が取得できません。会社のGoogleアカウントで開いてください');
   if (!ss_().getSheetByName('recipients')) setup();
+  fixTimeZone_(); // 日時が9時間ずれる問題の対処（1回だけ）
   var me = member_(email);
   me.isAdmin = isAdmin_(email);
   var s = settings_();
@@ -958,10 +992,29 @@ function deleteCampaign(id) {
   return { ok: true };
 }
 // 送信待ちを取りやめるとき、並べてあった宛先（未送信）を消す
-function dropSends_(campaignId) {
+function dropSends_(campaignId, all) {
   var sh = sheet_('sends'), rows = rows_('sends');
-  for (var i = rows.length - 1; i >= 0; i--) if (String(rows[i][0]) === campaignId && String(rows[i][6]) === 'pending') sh.deleteRow(i + 2);
+  for (var i = rows.length - 1; i >= 0; i--) if (String(rows[i][0]) === campaignId && (all || String(rows[i][6]) === 'pending')) sh.deleteRow(i + 2);
   bust_('sends');
+}
+// 一覧のチェックで選んだ配信をまとめて削除（テスト送信の掃除用）。送信済みも消せる＝その配信の記録（送信・開封・クリック）は見られなくなる
+// 削除できるのは、その配信の担当者か管理者（送信待ちは準備した人も）
+function deleteCampaigns(ids) {
+  var email = myEmail_();
+  if (!Array.isArray(ids) || !ids.length) throw new Error('削除する配信を選んでください');
+  var admin = isAdmin_(email), rows = rows_('campaigns'), hits = [];
+  ids.forEach(function (id) {
+    var i = -1; rows.forEach(function (r, k) { if (String(r[0]) === String(id)) i = k; });
+    if (i < 0) throw new Error('配信が見つかりません');
+    var c = campObj_(rows[i]);
+    if (c.ownerEmail !== email && !admin && !(c.status === 'ready' && c.preparedBy === email)) throw new Error('削除できない配信が含まれています（担当者か管理者だけ）');
+    if (c.status === 'sending') throw new Error('送信中の配信は削除できません。終わってからにしてください');
+    hits.push({ row: i + 2, id: c.id });
+  });
+  hits.forEach(function (h) { dropSends_(h.id, true); });
+  hits.sort(function (a, b) { return b.row - a.row; }).forEach(function (h) { sheet_('campaigns').deleteRow(h.row); });
+  bust_('campaigns');
+  return { deleted: hits.length };
 }
 // 画面のプレビュー（宛先を1件指定。指定が無ければ見本の宛先）
 function previewCampaign(f, rec) {
@@ -1286,7 +1339,7 @@ var WORKER_TOKEN = 'test-token';
 </script>
 <script id="app">
 var booted = false;
-var S = { recFolder: 'mine', genres: [], recentDays: 30, me: null, members: [], settings: {}, quota: null, camps: [], recs: [], tab: 'list', compose: { id: '', sel: {} }, result: null, recSel: {}, pvTimer: null };
+var S = { listSel: {}, recFolder: 'mine', genres: [], recentDays: 30, me: null, members: [], settings: {}, quota: null, camps: [], recs: [], tab: 'list', compose: { id: '', sel: {} }, result: null, recSel: {}, pvTimer: null };
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function call(name) {
@@ -1376,7 +1429,8 @@ function renderList() {
   var ST = { draft: '下書き', ready: '送信待ち', sending: '送信中', sent: '送信済み' };
   $('listBody').innerHTML = rows.map(function (x) {
     var d = x.status === 'draft' || x.status === 'ready';
-    return '<tr class="row" data-id="' + esc(x.id) + '" data-st="' + x.status + '"><td class="mono" style="white-space:nowrap;color:var(--muted);font-size:12px">' + esc(fmtD(d ? x.created : x.sentAt)) + '</td>' +
+    var canDel = (x.ownerEmail === S.me.email || S.me.isAdmin || (x.status === 'ready' && x.preparedBy === S.me.email)) && x.status !== 'sending';
+    return '<tr class="row" data-id="' + esc(x.id) + '" data-st="' + x.status + '"><td><input type="checkbox" class="lck" data-id="' + esc(x.id) + '"' + (S.listSel[x.id] ? ' checked' : '') + (canDel ? '' : ' disabled') + ' style="height:auto"></td><td class="mono" style="white-space:nowrap;color:var(--muted);font-size:12px">' + esc(fmtD(d ? x.created : x.sentAt)) + '</td>' +
       '<td><div class="nm">' + esc(x.subject) + '</div></td><td class="' + (S.me.isAdmin ? '' : 'hide') + '">' + esc(x.ownerName) + '</td>' +
       '<td><span class="tag ' + x.status + '">' + ST[x.status] + '</span>' + (x.status === 'ready' ? '<div class="sub">' + esc(x.preparedByName || '') + ' さんが準備・' + x.total + ' 件</div>' : '') + '</td>' +
       '<td class="num">' + (d ? '−' : x.sent + (x.failed ? '<span class="pct" style="color:var(--danger)">失敗' + x.failed + '</span>' : '')) + '</td>' +
@@ -1385,9 +1439,19 @@ function renderList() {
       '<td class="num">' + (d ? '−' : x.unsub || 0) + '</td></tr>';
   }).join('');
   document.querySelectorAll('#listBody tr').forEach(function (tr) {
-    tr.onclick = function () { if (tr.dataset.st === 'draft') openCompose(tr.dataset.id); else if (tr.dataset.st === 'ready') readyModal(tr.dataset.id); else openResult(tr.dataset.id); };
+    tr.onclick = function (e) { if (e.target.closest('input')) return; if (tr.dataset.st === 'draft') openCompose(tr.dataset.id); else if (tr.dataset.st === 'ready') readyModal(tr.dataset.id); else openResult(tr.dataset.id); };
   });
+  document.querySelectorAll('#listBody .lck').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.listSel[ck.dataset.id] = true; else delete S.listSel[ck.dataset.id]; updateListSel(); }; });
+  updateListSel();
 }
+function updateListSel() { var n = Object.keys(S.listSel).length; $('listDel').classList.toggle('hide', !n); $('listDel').textContent = '選択を削除（' + n + '）'; }
+$('listAllCk').onchange = function () { document.querySelectorAll('#listBody .lck:not(:disabled)').forEach(function (ck) { if ($('listAllCk').checked) S.listSel[ck.dataset.id] = true; else delete S.listSel[ck.dataset.id]; }); renderList(); };
+$('listDel').onclick = function () {
+  var ids = Object.keys(S.listSel); if (!ids.length) return;
+  var sentN = S.camps.filter(function (c) { return ids.indexOf(c.id) >= 0 && c.status === 'sent'; }).length;
+  if (!confirm(ids.length + ' 件の配信を削除しますか？' + (sentN ? '\n（送信済み ' + sentN + ' 件を含みます。削除すると、その配信の送信・開封・クリックの記録は見られなくなります。送ったメールは取り消せません）' : ''))) return;
+  call('deleteCampaigns', ids).then(function (r) { toast(r.deleted + ' 件削除しました'); S.listSel = {}; $('listAllCk').checked = false; return loadList(); }).catch(fail);
+};
 $('listQ').oninput = renderList; $('listOwner').onchange = renderList;
 $('newBtn').onclick = function () { newCompose(); show('compose'); };
 
