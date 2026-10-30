@@ -245,7 +245,7 @@
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2 id="cTitle">新しい配信</h2><span class="sp"></span><span class="tag draft" id="cStatus">下書き</span></div>
               <div class="card-b">
                 <div class="field"><label>件名</label><input id="cSubject" type="text" placeholder="例: 【くれよん12月号】年末年始の集客にご活用ください"></div>
-                <div class="field"><label>宛名の形（{会社名}{氏名}様 の出し方）</label><select id="cAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select><div class="hint">苗字は、氏名の最初の空白までです（「山田 太郎」→「山田」。空白が無い氏名はそのまま）。いつもの形は「署名・設定」で既定にできます。</div></div>
+                <div class="field"><label>宛名の形（{会社名}{氏名}様 の出し方）</label><select id="cAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select><div class="hint">苗字は宛先リストの「姓」の欄です（姓と名が1つの欄に入っている古いデータは、最初の空白で分けます）。いつもの形は「署名・設定」で既定にできます。</div></div>
                 <div class="field"><label>本文（手紙のような文章で。文字を選んで、サイズ・色・下線・太字を変えられます）</label>
                   <div class="chips"><button class="chip" data-ins="{会社名}">{会社名}</button><button class="chip" data-ins="{氏名}様">{氏名}様</button><button class="chip" data-ins="{担当者名}">{担当者名}</button></div>
                   <div class="toolbar" data-for="cBody"></div><div id="cBody" class="editor" contenteditable="true" data-ph="ここに本文を書きます"></div>
@@ -307,9 +307,9 @@
             <select id="recStatus"><option value="">状態: すべて</option><option value="ok">送れる</option><option value="unsub">配信停止</option><option value="bounce">不達</option></select>
             <select id="recGenre"><option value="">ジャンル: すべて</option></select><select id="recTag"><option value="">タグ: すべて</option></select>
             <span class="count" id="recCount"></span><button class="btn danger hide" id="recDel">選択を削除</button><button class="btn primary" id="recAdd">＋ 宛先を追加</button></div>
-          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="recAllCk" style="height:auto"></th><th>会社名</th><th>氏名</th><th>メール</th><th>ジャンル</th><th>タグ</th><th>状態</th><th>担当</th><th>メモ</th><th>最終送信</th></tr></thead><tbody id="recBody"></tbody></table></div>
+          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="recAllCk" style="height:auto"></th><th>会社名</th><th>姓</th><th>名</th><th>メール</th><th>ジャンル</th><th>タグ</th><th>状態</th><th>担当</th><th>メモ</th><th>最終送信</th></tr></thead><tbody id="recBody"></tbody></table></div>
           <div class="empty hide" id="recEmpty">宛先がありません。「＋ 宛先を追加」から登録できます（まとめて貼り付けもできます）</div>
-          <div class="hint" style="padding:10px 18px;border-top:1px solid var(--line)">会社名・氏名・メール・タグ・メモはクリックしてその場で直せます（Enter で保存・Esc でやめる）。タグは「,」で区切って複数付けられます。担当者は引き継ぎのとき誰でも変えられます。文字の変更と削除は担当者と管理者だけです。</div>
+          <div class="hint" style="padding:10px 18px;border-top:1px solid var(--line)">会社名・姓・名・メール・タグ・メモはクリックしてその場で直せます（Enter で保存・Esc でやめる）。宛名の形「苗字」は「姓」の欄を使います。タグは「,」で区切って複数付けられます。担当者は引き継ぎのとき誰でも変えられます。文字の変更と削除は担当者と管理者だけです。</div>
         </div>
       </section>
 
@@ -536,7 +536,7 @@ var WORKER_URL = 'https://kcreate-dm.k-create.workers.dev';
 var TRACK_URL = WORKER_URL + '/'; // メールに入れる記録用URLの頭（settings の track_url で上書き可）
 var CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 var BATCH = 30; // 1回の sendBatch で送る件数（画面が繰り返し呼ぶ）
-var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags']; // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
+var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei']; // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
 var DEFAULT_GENRES = ['グルメ', 'スクール', 'ショップ', '暮らし', 'トータルケア', 'クリニック', '介護・福祉', '終活・士業', '企業', 'その他'];
 var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
 var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style'];
@@ -697,8 +697,13 @@ function setSettings(s) {
 }
 
 // ---------- 宛先 ----------
+// 姓・名: 「山田 太郎」→ 姓=山田 名=太郎。空白が無ければ全部を姓に
+function splitName_(name) { var t = String(name || '').trim().split(/[\s\u3000]+/).filter(String); return { sei: t[0] || '', mei: t.slice(1).join(' ') }; }
+function joinName_(sei, mei) { return [String(sei || '').trim(), String(mei || '').trim()].filter(String).join(' '); }
 function recObj_(r) {
-  return { id: String(r[0]), company: String(r[1]), name: String(r[2]), email: String(r[3]).toLowerCase(), ownerEmail: String(r[4]).toLowerCase(),
+  var sei = String(r[12] || '').trim(), mei = String(r[13] || '').trim(), name = String(r[2] || '').trim();
+  if (!sei && !mei && name) { var sp = splitName_(name); sei = sp.sei; mei = sp.mei; }
+  return { id: String(r[0]), company: String(r[1]), name: joinName_(sei, mei), sei: sei, mei: mei, email: String(r[3]).toLowerCase(), ownerEmail: String(r[4]).toLowerCase(),
            status: String(r[5]) || 'ok', note: String(r[6]), created: str_(r[7]), updated: str_(r[8]), genre: String(r[10] || ''), tags: String(r[11] || '') };
 }
 function genres_() { return rows_('genres').map(function (r) { return String(r[0]); }).filter(String); }
@@ -748,11 +753,12 @@ function addRecipients(list) {
   rows_('recipients').forEach(function (r) { if (!r[9] && String(r[4]).toLowerCase() === email) have[String(r[3]).toLowerCase()] = true; });
   var out = [], skipped = 0, bad = [], t = now_();
   list.forEach(function (x) {
-    var e = String(x.email || '').trim().toLowerCase(), c = String(x.company || '').trim(), n = String(x.name || '').trim();
+    var e = String(x.email || '').trim().toLowerCase(), c = String(x.company || '').trim();
+    var sp = (x.sei !== undefined || x.mei !== undefined) ? { sei: String(x.sei || '').trim(), mei: String(x.mei || '').trim() } : splitName_(x.name);
     if (!isEmail_(e)) { bad.push(x.email || '(空)'); return; }
     if (have[e]) { skipped++; return; }
     have[e] = true;
-    out.push([newCode_(8), c, n, e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags)]);
+    out.push([newCode_(8), c, joinName_(sp.sei, sp.mei), e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags), sp.sei, sp.mei]);
   });
   if (out.length) { sheet_('recipients').getRange(sheet_('recipients').getLastRow() + 1, 1, out.length, REC_HEAD.length).setValues(out); bust_('recipients'); }
   return { added: out.length, skipped: skipped, bad: bad };
@@ -771,8 +777,13 @@ function updateRecipient(id, f) {
   if (!isEmail_(e)) throw new Error('メールアドレスの形が正しくありません');
   var st = f.status === undefined ? o.status : String(f.status);
   if (['ok', 'unsub', 'bounce'].indexOf(st) < 0) throw new Error('状態が正しくありません');
-  var vals = [String(f.company === undefined ? o.company : f.company).trim(), String(f.name === undefined ? o.name : f.name).trim(), e];
+  var sei = o.sei, mei = o.mei;
+  if (f.name !== undefined) { var sp = splitName_(f.name); sei = sp.sei; mei = sp.mei; }
+  if (f.sei !== undefined) sei = String(f.sei || '').trim();
+  if (f.mei !== undefined) mei = String(f.mei || '').trim();
+  var vals = [String(f.company === undefined ? o.company : f.company).trim(), joinName_(sei, mei), e];
   sheet_('recipients').getRange(hit.row, 2, 1, 3).setValues([vals]);
+  sheet_('recipients').getRange(hit.row, 13, 1, 2).setValues([[sei, mei]]);
   sheet_('recipients').getRange(hit.row, 6, 1, 4).setValues([[st, String(f.note === undefined ? o.note : f.note), str_(hit.r[7]), now_()]]);
   if (f.genre !== undefined || f.tags !== undefined) sheet_('recipients').getRange(hit.row, 11, 1, 2).setValues([[f.genre === undefined ? o.genre : genreNorm_(f.genre), f.tags === undefined ? o.tags : tagsNorm_(f.tags)]]);
   bust_('recipients');
@@ -832,7 +843,7 @@ function surname_(name) { return String(name || '').trim().split(/[\s\u3000]+/)[
 // style: full=会社名＋フルネーム / surname=会社名＋苗字 / surname_only=苗字だけ（{会社名} は空になり、その空行は消す）
 function merge_(text, rec, sender, style) {
   style = addrStyle_(style);
-  var name = style === 'full' ? (rec.name || '') : surname_(rec.name);
+  var name = style === 'full' ? (rec.name || '') : (rec.sei || surname_(rec.name));
   var company = style === 'surname_only' ? '' : (rec.company || '');
   var out = String(text)
     .replace(/\{会社名\}/g, company)
@@ -1095,12 +1106,13 @@ function sendBatch(id) {
   if (!lock.tryLock(10000)) throw new Error('送信中です。少し待ってください');
   try {
     var me = member_(email), s = settings_(), sh = sheet_('sends'), rows = rows_('sends');
+    var seiOf = {}; rows_('recipients').forEach(function (r) { seiOf[String(r[0])] = recObj_(r).sei; }); // 苗字の宛名用
     var n = 0, sent = 0, failed = 0, remaining = 0;
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][0]) !== c.id || String(rows[i][6]) !== 'pending') continue;
       if (n >= BATCH) { remaining++; continue; }
       n++;
-      var rec = { company: String(rows[i][4]), name: String(rows[i][5]), email: String(rows[i][3]) }, token = String(rows[i][2]);
+      var rec = { company: String(rows[i][4]), name: String(rows[i][5]), email: String(rows[i][3]), sei: seiOf[String(rows[i][1])] || '' }, token = String(rows[i][2]);
       try {
         GmailApp.sendEmail(rec.email, merge_(c.subject, rec, me.name, c.addrStyle), buildText_(c, rec, me, token, s), { htmlBody: buildHtml_(c, rec, me, token, s), name: me.name });
         sh.getRange(i + 2, 7, 1, 3).setValues([['sent', now_(), '']]);
@@ -1458,7 +1470,7 @@ function renderLinks() { var l = links_(); $('cLinks').innerHTML = l.length ? l.
 function surnameOf(name) { return String(name || '').trim().split(/[\s\u3000]+/)[0] || ''; }
 function mergeLocal(text, rec, sender, style) {
   style = style || 'full';
-  var name = style === 'full' ? (rec.name || '') : surnameOf(rec.name), company = style === 'surname_only' ? '' : (rec.company || '');
+  var name = style === 'full' ? (rec.name || '') : (rec.sei || surnameOf(rec.name)), company = style === 'surname_only' ? '' : (rec.company || '');
   var out = String(text).replace(/\{会社名\}/g, company).replace(/\{氏名\}\s*様/g, name ? name + '様' : 'ご担当者様').replace(/\{氏名\}/g, name || 'ご担当者').replace(/\{担当者名\}/g, sender || '');
   if (!company) out = out.replace(/^(\s*<br\s*\/?>)+/, '').replace(/<div>\s*<\/div>/g, '').replace(/^\n+/, '');
   return out;
@@ -1633,6 +1645,14 @@ $('autoSend').onchange = function () {
 var STN = { ok: '送れる', unsub: '配信停止', bounce: '不達' };
 function loadRecs() { return call('listRecipients').then(function (list) { S.recs = list; if (S.tab === 'recipients') { renderFolders(); renderRecs(); } }).catch(fail); }
 function canEditRec(r) { return r.ownerEmail === S.me.email || S.me.isAdmin; }
+// サーバーから返った1件を手元の一覧に反映して描き直す（一覧全体を読み直さないので速い）
+function applyRec(upd) {
+  var i = -1; S.recs.forEach(function (x, k) { if (x.id === upd.id) i = k; });
+  if (i < 0) { loadRecs(); return; }
+  var cur = S.recs[i], names = {}; S.members.forEach(function (m) { names[m.email] = m.name; });
+  S.recs[i] = Object.assign({}, cur, upd, { ownerName: names[upd.ownerEmail] || cur.ownerName || '', lastSent: cur.lastSent });
+  renderFolders(); renderRecs();
+}
 // 左の「自分／全員／各スタッフ」。最初は自分
 function renderFolders() {
   var cnt = {}, mine = 0;
@@ -1655,9 +1675,9 @@ function renderRecs() {
   var opts = S.members.map(function (m) { return '<option value="' + esc(m.email) + '">' + esc(m.name) + '</option>'; }).join('');
   $('recBody').innerHTML = rows.map(function (r) {
     var ed = canEditRec(r);
-    function cell(f, v, cls) { return '<td class="' + (ed ? 'ed ' : '') + (cls || '') + '" data-id="' + esc(r.id) + '" data-f="' + f + '" title="' + (ed ? 'クリックで変更' : '') + '">' + (v ? esc(v) : (f === 'name' ? '<span style="color:var(--faint)">（ご担当者様）</span>' : '')) + '</td>'; }
+    function cell(f, v, cls) { return '<td class="' + (ed ? 'ed ' : '') + (cls || '') + '" data-id="' + esc(r.id) + '" data-f="' + f + '" title="' + (ed ? 'クリックで変更' : '') + '">' + (v ? esc(v) : (f === 'sei' ? '<span style="color:var(--faint)">（ご担当者様）</span>' : '')) + '</td>'; }
     return '<tr data-id="' + esc(r.id) + '"><td><input type="checkbox" class="rck" data-id="' + esc(r.id) + '"' + (S.recSel[r.id] ? ' checked' : '') + (ed ? '' : ' disabled') + ' style="height:auto"></td>' +
-      cell('company', r.company, 'nm') + cell('name', r.name) + cell('email', r.email, 'mono') +
+      cell('company', r.company, 'nm') + cell('sei', r.sei) + cell('mei', r.mei) + cell('email', r.email, 'mono') +
       '<td>' + (ed ? '<select class="sel rgen" data-id="' + esc(r.id) + '"><option value="">（なし）</option>' + S.genres.map(function (x) { return '<option' + (r.genre === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' : (r.genre ? '<span class="tag">' + esc(r.genre) + '</span>' : '')) + '</td>' +
       cell('tags', r.tags) +
       '<td>' + (ed ? '<select class="sel rst" data-id="' + esc(r.id) + '"><option value="ok"' + (r.status === 'ok' ? ' selected' : '') + '>送れる</option><option value="unsub"' + (r.status === 'unsub' ? ' selected' : '') + '>配信停止</option><option value="bounce"' + (r.status === 'bounce' ? ' selected' : '') + '>不達</option></select>' : '<span class="tag ' + r.status + '">' + STN[r.status] + '</span>') + '</td>' +
@@ -1667,12 +1687,12 @@ function renderRecs() {
   document.querySelectorAll('#recBody .rown').forEach(function (sel) { var r = S.recs.filter(function (x) { return x.id === sel.dataset.id; })[0]; sel.value = r.ownerName ? r.ownerEmail : ''; });
   document.querySelectorAll('#recBody td.ed').forEach(function (td) { td.onclick = function () { startEdit(td); }; });
   document.querySelectorAll('#recBody .rck').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.recSel[ck.dataset.id] = true; else delete S.recSel[ck.dataset.id]; updateRecSel(); }; });
-  document.querySelectorAll('#recBody .rgen').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { genre: sel.value }).then(function () { toast('ジャンルを変えました'); return loadRecs(); }).catch(function (e) { fail(e); loadRecs(); }); }; });
-  document.querySelectorAll('#recBody .rst').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { status: sel.value }).then(function (r) { toast('「' + STN[r.status] + '」にしました'); return loadRecs(); }).catch(function (e) { fail(e); loadRecs(); }); }; });
+  document.querySelectorAll('#recBody .rgen').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { genre: sel.value }).then(function (r) { toast('ジャンルを変えました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); }); }; });
+  document.querySelectorAll('#recBody .rst').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { status: sel.value }).then(function (r) { toast('「' + STN[r.status] + '」にしました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); }); }; });
   document.querySelectorAll('#recBody .rown').forEach(function (sel) { sel.onchange = function () {
     var r = S.recs.filter(function (x) { return x.id === sel.dataset.id; })[0], to = S.members.filter(function (m) { return m.email === sel.value; })[0];
     if (!to || !confirm('「' + r.company + '」の担当者を ' + to.name + ' さんに変えますか？')) { loadRecs(); return; }
-    call('changeOwner', sel.dataset.id, sel.value).then(function () { toast('担当者を ' + to.name + ' さんに変えました'); return loadRecs(); }).catch(function (e) { fail(e); loadRecs(); });
+    call('changeOwner', sel.dataset.id, sel.value).then(function (r) { toast('担当者を ' + to.name + ' さんに変えました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); });
   }; });
   updateRecSel();
 }
@@ -1681,7 +1701,7 @@ function startEdit(td) {
   if (td.querySelector('input')) return;
   var id = td.dataset.id, f = td.dataset.f, r = S.recs.filter(function (x) { return x.id === id; })[0];
   var old = r[f] || '', inp = document.createElement('input');
-  inp.type = f === 'email' ? 'email' : 'text'; inp.value = old; inp.placeholder = f === 'name' ? '空なら「ご担当者様」' : f === 'tags' ? '例: 既存客, 12月号' : '';
+  inp.type = f === 'email' ? 'email' : 'text'; inp.value = old; inp.placeholder = f === 'sei' ? '空なら「ご担当者様」' : f === 'mei' ? '名（任意）' : f === 'tags' ? '例: 既存客, 12月号' : '';
   td.textContent = ''; td.appendChild(inp); inp.focus(); inp.select();
   var done = false;
   function finish(save) {
@@ -1689,7 +1709,10 @@ function startEdit(td) {
     var v = inp.value.trim();
     if (!save || v === old) { renderRecs(); return; }
     var o = {}; o[f] = v;
-    call('updateRecipient', id, o).then(function () { toast('保存しました'); return loadRecs(); }).catch(function (e) { fail(e); loadRecs(); });
+    // 先に画面の文字を入れ替えて（待たせない）、サーバーの結果で確定
+    var optimistic = Object.assign({}, r); optimistic[f] = v; if (f === 'sei' || f === 'mei') optimistic.name = [optimistic.sei, optimistic.mei].filter(String).join(' ');
+    applyRec(optimistic);
+    call('updateRecipient', id, o).then(function (res) { toast('保存しました'); applyRec(res); }).catch(function (e) { fail(e); loadRecs(); });
   }
   inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); finish(true); } if (e.key === 'Escape') finish(false); };
   inp.onblur = function () { finish(true); };
@@ -1704,23 +1727,26 @@ $('recDel').onclick = function () {
 };
 $('recAdd').onclick = function () {
   modal('<div class="mh"><h3>宛先を追加</h3></div><div class="mb">' +
-    '<div class="field"><label>1件ずつ</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="aCompany" type="text" placeholder="会社名"><input id="aName" type="text" placeholder="氏名（空なら「ご担当者様」）"></div><input id="aEmail" type="email" placeholder="メールアドレス" style="margin-top:8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><select id="aGenre"><option value="">ジャンル（任意）</option>' + S.genres.map(function (g) { return '<option>' + esc(g) + '</option>'; }).join('') + '</select><input id="aTags" type="text" placeholder="タグ（任意・, で区切る）"></div></div>' +
-    '<div class="field"><label>まとめて貼り付け（1行に「会社名, 氏名, メール, ジャンル, タグ」。ジャンル・タグは無くてもOK。スプレッドシートからコピーした列もそのまま貼れます）</label><textarea id="aPaste" rows="6" placeholder="株式会社サンプル\t山田 太郎\tyamada@example.jp&#10;有限会社みほん\t\tinfo@example.jp"></textarea></div>' +
+    '<div class="field"><label>1件ずつ</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="aCompany" type="text" placeholder="会社名"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="aSei" type="text" placeholder="姓（空なら「ご担当者様」）"><input id="aMei" type="text" placeholder="名"></div></div><input id="aEmail" type="email" placeholder="メールアドレス" style="margin-top:8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><select id="aGenre"><option value="">ジャンル（任意）</option>' + S.genres.map(function (g) { return '<option>' + esc(g) + '</option>'; }).join('') + '</select><input id="aTags" type="text" placeholder="タグ（任意・, で区切る）"></div></div>' +
+    '<div class="field"><label>まとめて貼り付け（1行に「会社名, 姓, 名, メール, ジャンル, タグ」。「会社名, 氏名, メール」でもOK（氏名は空白で姓と名に分けます）。ジャンル・タグは無くてもOK。スプレッドシートの列をコピーしてそのまま貼れます）</label><textarea id="aPaste" rows="6" placeholder="株式会社サンプル\t山田 太郎\tyamada@example.jp&#10;有限会社みほん\t\tinfo@example.jp"></textarea></div>' +
     '<p class="hint">同じメールアドレスがすでにある場合は飛ばします。登録した宛先は自分の宛先になります。</p></div>' +
     '<div class="mf"><button class="btn" data-close>やめる</button><button class="btn primary" id="aSave">追加する</button></div>', function (bg) {
     bg.querySelector('#aCompany').focus();
     bg.querySelector('[data-close]').onclick = function () { bg.remove(); };
     bg.querySelector('#aSave').onclick = function () {
       var list = [];
-      var c = bg.querySelector('#aCompany').value.trim(), n = bg.querySelector('#aName').value.trim(), e = bg.querySelector('#aEmail').value.trim();
-      if (c || n || e) list.push({ company: c, name: n, email: e, genre: bg.querySelector('#aGenre').value, tags: bg.querySelector('#aTags').value });
+      var c = bg.querySelector('#aCompany').value.trim(), sei = bg.querySelector('#aSei').value.trim(), mei = bg.querySelector('#aMei').value.trim(), e = bg.querySelector('#aEmail').value.trim();
+      if (c || sei || mei || e) list.push({ company: c, sei: sei, mei: mei, email: e, genre: bg.querySelector('#aGenre').value, tags: bg.querySelector('#aTags').value });
       bg.querySelector('#aPaste').value.split(/\r?\n/).forEach(function (line) {
         if (!line.trim()) return;
         var p = line.split(/\t|,/).map(function (s) { return s.trim(); });
         var ei = p.findIndex(function (s) { return /@/.test(s); });
         if (ei < 0) { list.push({ company: p[0] || '', name: p[1] || '', email: '' }); return; }
-        var rest = p.filter(function (_, i) { return i !== ei; });
-        list.push({ company: rest[0] || '', name: rest[1] || '', email: p[ei], genre: rest[2] || '', tags: rest.slice(3).join(', ') });
+        // メールより前: 「会社名, 姓, 名」(3つ) か「会社名, 氏名」(2つ・氏名は空白で分ける)。メールより後: ジャンル, タグ
+        var before = p.slice(0, ei), after = p.slice(ei + 1);
+        var item = { company: before[0] || '', email: p[ei], genre: after[0] || '', tags: after.slice(1).join(', ') };
+        if (before.length >= 3) { item.sei = before[1] || ''; item.mei = before.slice(2).join(' '); } else item.name = before[1] || '';
+        list.push(item);
       });
       if (!list.length) { toast('追加する宛先を入れてください', true); return; }
       call('addRecipients', list).then(function (r) {
