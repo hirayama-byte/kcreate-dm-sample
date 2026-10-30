@@ -88,6 +88,7 @@
   textarea { padding: 10px 12px; width: 100%; resize: vertical; line-height: 1.7; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
   input[type=text], input[type=email] { min-width: 0; width: 100%; }
+  #cAddr, #bAddr, #sAddr { width: 100%; max-width: 100%; } /* 宛名の形（選択肢の文字が長いので幅いっぱいに収める） */
   button.btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
   button.btn:hover { background: #f8fafc; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -244,6 +245,7 @@
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2 id="cTitle">新しい配信</h2><span class="sp"></span><span class="tag draft" id="cStatus">下書き</span></div>
               <div class="card-b">
                 <div class="field"><label>件名</label><input id="cSubject" type="text" placeholder="例: 【くれよん12月号】年末年始の集客にご活用ください"></div>
+                <div class="field"><label>宛名の形（{会社名}{氏名}様 の出し方）</label><select id="cAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select><div class="hint">苗字は、氏名の最初の空白までです（「山田 太郎」→「山田」。空白が無い氏名はそのまま）。いつもの形は「署名・設定」で既定にできます。</div></div>
                 <div class="field"><label>本文（手紙のような文章で。文字を選んで、サイズ・色・下線・太字を変えられます）</label>
                   <div class="chips"><button class="chip" data-ins="{会社名}">{会社名}</button><button class="chip" data-ins="{氏名}様">{氏名}様</button><button class="chip" data-ins="{担当者名}">{担当者名}</button></div>
                   <div class="toolbar" data-for="cBody"></div><div id="cBody" class="editor" contenteditable="true" data-ph="ここに本文を書きます"></div>
@@ -275,6 +277,7 @@
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>件名と本文（全員共通）</h2></div>
               <div class="card-b">
                 <div class="field"><label>件名</label><input id="bSubject" type="text" placeholder="例: 【くれよん12月号】年末年始の集客にご活用ください"></div>
+                <div class="field"><label>宛名の形（全員共通）</label><select id="bAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select></div>
                 <div class="field"><label>本文（{担当者名} はそれぞれの担当者の名前になります）</label>
                   <div class="chips"><button class="chip" data-ed="bBody" data-ins="{会社名}">{会社名}</button><button class="chip" data-ed="bBody" data-ins="{氏名}様">{氏名}様</button><button class="chip" data-ed="bBody" data-ins="{担当者名}">{担当者名}</button></div>
                   <div class="toolbar" data-for="bBody"></div><div id="bBody" class="editor" contenteditable="true" data-ph="ここに本文を書きます"></div></div>
@@ -315,6 +318,7 @@
         <div class="grid2">
           <div class="card"><div class="card-h"><h2>自分の署名（メールの最後に付きます）</h2></div><div class="card-b">
             <div class="field"><label>名前（必須・メールの差出人になります）</label><input id="sName" type="text"></div>
+            <div class="field"><label>いつもの宛名の形（新しい配信を作るときの既定。配信ごとに変えられます）</label><select id="sAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select></div>
             <div class="field"><label>署名（自由に書けます。名前・会社名・電話・住所などを好きな並びで）</label>
               <div class="toolbar" data-for="sSig"></div><div id="sSig" class="editor sig" contenteditable="true" data-ph="空のままだと 名前・会社名・住所・メール が自動で付きます"></div>
               <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button class="btn sm" id="sTpl">ひな形を入れる</button><span class="hint">法律で、送信者の名前と住所がメールに必要です（ひな形には入っています）</span></div></div>
@@ -535,10 +539,12 @@ var BATCH = 30; // 1回の sendBatch で送る件数（画面が繰り返し呼�
 var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags']; // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
 var DEFAULT_GENRES = ['グルメ', 'スクール', 'ショップ', '暮らし', 'トータルケア', 'クリニック', '介護・福祉', '終活・士業', '企業', 'その他'];
 var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
-var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by']; // status: draft / ready（送信待ち・他の人が準備）/ sending / sent
+var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style'];
+var ADDR_STYLES = ['full', 'surname', 'surname_only']; // 宛名の形: 会社名＋フルネーム / 会社名＋苗字 / 苗字だけ（会社名なし）
+function addrStyle_(v) { return ADDR_STYLES.indexOf(String(v || '')) >= 0 ? String(v) : 'full'; } // status: draft / ready（送信待ち・他の人が準備）/ sending / sent
 var AUTO_HOUR = 9; // 自動送信の時刻（送信待ちを本人のアカウントで送る）
 var SEND_HEAD = ['campaign_id', 'recipient_id', 'token', 'email', 'company', 'name', 'status', 'sent_at', 'error']; // status: pending / sent / failed
-var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature'];
+var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature', 'addr_style']; // addr_style = その人のいつもの宛名の形（新しい配信の既定）
 var DEFAULT_SETTINGS = [
   ['company', '株式会社 ケイ・クリエイト'],
   ['address', '〒493-0005　愛知県一宮市木曽川町里小牧寺東125番地'],
@@ -561,14 +567,16 @@ function setup() {
   var ss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.create('一斉DM管理データ');
   var rec = ensureSheet_(ss, 'recipients', REC_HEAD);
   if (rec.getLastColumn() < REC_HEAD.length) rec.getRange(1, 1, 1, REC_HEAD.length).setValues([REC_HEAD]); // あとから足した列（genre, tags）
-  ensureSheet_(ss, 'campaigns', CAMP_HEAD);
+  var camp = ensureSheet_(ss, 'campaigns', CAMP_HEAD);
+  if (camp.getLastColumn() < CAMP_HEAD.length) camp.getRange(1, 1, 1, CAMP_HEAD.length).setValues([CAMP_HEAD]);
   var genres = ensureSheet_(ss, 'genres', ['genre']);
   if (genres.getLastRow() < 2) genres.getRange(2, 1, DEFAULT_GENRES.length, 1).setValues(DEFAULT_GENRES.map(function (g) { return [g]; }));
   ensureSheet_(ss, 'sends', SEND_HEAD);
   ss.getSheetByName('sends').getRange('C:C').setNumberFormat('@');
   var admins = ensureSheet_(ss, 'admins', ['email']);
   if (admins.getLastRow() < 2) admins.appendRow([ADMIN_EMAIL || Session.getEffectiveUser().getEmail()]);
-  ensureSheet_(ss, 'members', MEMBER_HEAD);
+  var mem = ensureSheet_(ss, 'members', MEMBER_HEAD);
+  if (mem.getLastColumn() < MEMBER_HEAD.length) mem.getRange(1, 1, 1, MEMBER_HEAD.length).setValues([MEMBER_HEAD]);
   var st = ensureSheet_(ss, 'settings', ['key', 'value']);
   if (st.getLastRow() < 2) st.getRange(2, 1, DEFAULT_SETTINGS.length, 2).setValues(DEFAULT_SETTINGS);
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('シート1');
@@ -611,7 +619,7 @@ function settings_() {
 function isAdmin_(email) { return rows_('admins').some(function (r) { return String(r[0]).toLowerCase() === email; }); }
 function member_(email) {
   var r = rows_('members').filter(function (x) { return String(x[0]).toLowerCase() === email; })[0];
-  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '' };
+  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '', addrStyle: addrStyle_(r ? r[5] : '') };
 }
 function membersList_() {
   return rows_('members').map(function (r) { return { email: String(r[0]).toLowerCase(), name: String(r[1]) }; }).filter(function (m) { return m.name; });
@@ -664,7 +672,7 @@ function setMyProfile(p) {
   if (!name) throw new Error('名前を入力してください');
   var cur = member_(email);
   var vals = [email, name, p.title === undefined ? cur.title : String(p.title || '').trim(), p.tel === undefined ? cur.tel : String(p.tel || '').trim(),
-              p.signature === undefined ? cur.signature : richHtml_(p.signature)];
+              p.signature === undefined ? cur.signature : richHtml_(p.signature), p.addrStyle === undefined ? cur.addrStyle : addrStyle_(p.addrStyle)];
   var sh = sheet_('members'), rows = rows_('members');
   for (var i = 0; i < rows.length; i++) {
     if (String(rows[i][0]).toLowerCase() === email) { sh.getRange(i + 2, 1, 1, vals.length).setValues([vals]); bust_('members'); return member_(email); }
@@ -819,12 +827,20 @@ function htmlToText_(html) {
 
 // ---------- 差し込み ----------
 // {会社名} {氏名}様 → 氏名が空なら「ご担当者様」。{担当者名} は送る人の名前
-function merge_(text, rec, sender) {
-  return String(text)
-    .replace(/\{会社名\}/g, rec.company || '')
-    .replace(/\{氏名\}\s*様/g, rec.name ? rec.name + '様' : 'ご担当者様')
-    .replace(/\{氏名\}/g, rec.name || 'ご担当者')
+// 苗字 = 名前の最初の区切り（半角・全角スペース）まで。区切りが無ければそのまま
+function surname_(name) { return String(name || '').trim().split(/[\s\u3000]+/)[0] || ''; }
+// style: full=会社名＋フルネーム / surname=会社名＋苗字 / surname_only=苗字だけ（{会社名} は空になり、その空行は消す）
+function merge_(text, rec, sender, style) {
+  style = addrStyle_(style);
+  var name = style === 'full' ? (rec.name || '') : surname_(rec.name);
+  var company = style === 'surname_only' ? '' : (rec.company || '');
+  var out = String(text)
+    .replace(/\{会社名\}/g, company)
+    .replace(/\{氏名\}\s*様/g, name ? name + '様' : 'ご担当者様')
+    .replace(/\{氏名\}/g, name || 'ご担当者')
     .replace(/\{担当者名\}/g, sender || '');
+  if (!company) out = out.replace(/^(\s*<br\s*\/?>)+/, '').replace(/<div>\s*<\/div>/g, '').replace(/^\n+/, ''); // 会社名なしで空いた先頭の行を詰める
+  return out;
 }
 var URL_RE = /https?:\/\/[^\s<>"'）){}]+/g; // {} は差し込み（{担当者名} など）が隣にあっても URL に含めない
 var URL_HTML_RE = /https?:\/\/(?:(?!&nbsp;|&lt;|&gt;)[^\s<>"'）){}])+/g; // HTML の中で探すとき（&nbsp; などで止める）
@@ -849,15 +865,15 @@ function buildHtml_(camp, rec, sender, token, settings) {
       return '<a href="' + href + '">' + u + '</a>';
     });
   }
-  var body = autolink(merge_(camp.body, rec, sender.name));
-  var sig = autolink(merge_(signatureHtml_(sender, settings), rec, sender.name));
+  var body = autolink(merge_(camp.body, rec, sender.name, camp.addrStyle));
+  var sig = autolink(merge_(signatureHtml_(sender, settings), rec, sender.name, camp.addrStyle));
   var unsub = token ? '<p style="font-size:12px;color:#888">' + esc_(settings.unsub_text) + '<br><a href="' + esc_(base + 'u/' + token) + '">配信停止</a></p>' : '';
   var pixel = token ? '<img src="' + esc_(base + 'o/' + token + '.gif') + '" width="1" height="1" alt="">' : '';
   return '<div style="font-family:sans-serif;font-size:14px;line-height:1.5;color:#222">' + body + '<br><br>--<br>' + sig + unsub + '</div>' + pixel;
 }
 function buildText_(camp, rec, sender, token, settings) {
   var base = trackUrl_();
-  var t = merge_(htmlToText_(camp.body), rec, sender.name) + '\n\n--\n' + merge_(htmlToText_(signatureHtml_(sender, settings)), rec, sender.name);
+  var t = merge_(htmlToText_(camp.body), rec, sender.name, camp.addrStyle) + '\n\n--\n' + merge_(htmlToText_(signatureHtml_(sender, settings)), rec, sender.name, camp.addrStyle);
   if (token) t += '\n\n' + settings.unsub_text + '\n配信停止: ' + base + 'u/' + token;
   return t;
 }
@@ -865,7 +881,7 @@ function buildText_(camp, rec, sender, token, settings) {
 // ---------- 配信 ----------
 function campObj_(r) {
   return { id: String(r[0]), ownerEmail: String(r[1]).toLowerCase(), subject: String(r[2]), body: String(r[3]), status: String(r[4]) || 'draft',
-           created: str_(r[5]), sentAt: str_(r[6]), total: Number(r[7]) || 0, sent: Number(r[8]) || 0, failed: Number(r[9]) || 0, links: String(r[10] || '[]'), preparedBy: String(r[11] || '').toLowerCase() };
+           created: str_(r[5]), sentAt: str_(r[6]), total: Number(r[7]) || 0, sent: Number(r[8]) || 0, failed: Number(r[9]) || 0, links: String(r[10] || '[]'), preparedBy: String(r[11] || '').toLowerCase(), addrStyle: addrStyle_(r[12]) };
 }
 // 配信を見られる人: 担当者・準備した人・管理者
 function canSeeCamp_(c, email) { return c.ownerEmail === email || c.preparedBy === email || isAdmin_(email); }
@@ -895,7 +911,7 @@ function checkCamp_(f) {
   if (!subject) throw new Error('件名を入力してください');
   if (!htmlToText_(body)) throw new Error('本文を入力してください');
   if (subject.length > 100) throw new Error('件名は100文字までにしてください');
-  return { subject: subject, body: body };
+  return { subject: subject, body: body, addrStyle: addrStyle_(f.addrStyle || member_(myEmail_()).addrStyle) };
 }
 function saveCampaign(id, f) {
   var email = myEmail_();
@@ -907,11 +923,12 @@ function saveCampaign(id, f) {
     if (hit.c.status !== 'draft') throw new Error('送信済みの配信は変更できません。「コピーして新しく作る」を使ってください');
     sheet_('campaigns').getRange(hit.row, 3, 1, 2).setValues([[v.subject, v.body]]);
     sheet_('campaigns').getRange(hit.row, 11).setValue(links);
+    sheet_('campaigns').getRange(hit.row, 13).setValue(v.addrStyle);
     bust_('campaigns');
     return findCampRow_(id).c;
   }
   var nid = newCode_(8);
-  sheet_('campaigns').appendRow([nid, email, v.subject, v.body, 'draft', now_(), '', 0, 0, 0, links, '']);
+  sheet_('campaigns').appendRow([nid, email, v.subject, v.body, 'draft', now_(), '', 0, 0, 0, links, '', v.addrStyle]);
   bust_('campaigns');
   return findCampRow_(nid).c;
 }
@@ -935,18 +952,18 @@ function dropSends_(campaignId) {
 function previewCampaign(f, rec) {
   var email = myEmail_();
   var v = checkCamp_(f);
-  var camp = { subject: v.subject, body: v.body, links: JSON.stringify(linksOf_(v.body)) };
+  var camp = { subject: v.subject, body: v.body, links: JSON.stringify(linksOf_(v.body)), addrStyle: v.addrStyle };
   var r = rec || { company: '株式会社サンプル', name: '山田 太郎' };
-  return { subject: merge_(camp.subject, r, member_(email).name), html: buildHtml_(camp, r, member_(email), 'preview0000', settings_()), links: linksOf_(v.body) };
+  return { subject: merge_(camp.subject, r, member_(email).name, v.addrStyle), html: buildHtml_(camp, r, member_(email), 'preview0000', settings_()), links: linksOf_(v.body) };
 }
 // 自分あてにテスト送信（記録はしない）
 function sendTest(f) {
   var email = myEmail_();
   checkMember_(email);
   var v = checkCamp_(f);
-  var camp = { subject: v.subject, body: v.body, links: JSON.stringify(linksOf_(v.body)) };
+  var camp = { subject: v.subject, body: v.body, links: JSON.stringify(linksOf_(v.body)), addrStyle: v.addrStyle };
   var r = { company: '株式会社サンプル', name: '山田 太郎' }, me = member_(email), s = settings_();
-  GmailApp.sendEmail(email, '【テスト】' + merge_(camp.subject, r, me.name), buildText_(camp, r, me, '', s), { htmlBody: buildHtml_(camp, r, me, '', s), name: me.name });
+  GmailApp.sendEmail(email, '【テスト】' + merge_(camp.subject, r, me.name, v.addrStyle), buildText_(camp, r, me, '', s), { htmlBody: buildHtml_(camp, r, me, '', s), name: me.name });
   return { to: email, quota: MailApp.getRemainingDailyQuota() };
 }
 
@@ -1023,7 +1040,7 @@ function prepareBulk(f) {
   var made = [];
   targets.forEach(function (t) {
     var id = newCode_(8);
-    sheet_('campaigns').appendRow([id, t.email, v.subject, v.body, 'ready', now_(), '', t.count, 0, 0, links, email]);
+    sheet_('campaigns').appendRow([id, t.email, v.subject, v.body, 'ready', now_(), '', t.count, 0, 0, links, email, v.addrStyle]);
     bust_('campaigns');
     var c = findCampRow_(id).c;
     queueSends_(c, t.recipients);
@@ -1085,7 +1102,7 @@ function sendBatch(id) {
       n++;
       var rec = { company: String(rows[i][4]), name: String(rows[i][5]), email: String(rows[i][3]) }, token = String(rows[i][2]);
       try {
-        GmailApp.sendEmail(rec.email, merge_(c.subject, rec, me.name), buildText_(c, rec, me, token, s), { htmlBody: buildHtml_(c, rec, me, token, s), name: me.name });
+        GmailApp.sendEmail(rec.email, merge_(c.subject, rec, me.name, c.addrStyle), buildText_(c, rec, me, token, s), { htmlBody: buildHtml_(c, rec, me, token, s), name: me.name });
         sh.getRange(i + 2, 7, 1, 3).setValues([['sent', now_(), '']]);
         sent++;
       } catch (e) {
@@ -1389,7 +1406,7 @@ function renderResult() {
 }
 $('rFilter').onchange = renderResult;
 $('backBtn').onclick = function () { show('list'); };
-$('copyBtn').onclick = function () { var c = S.result.campaign; newCompose(); $('cSubject').value = c.subject; edSet('cBody', c.body); show('compose'); };
+$('copyBtn').onclick = function () { var c = S.result.campaign; newCompose(); $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; show('compose'); };
 
 // ---------- 書式つき編集欄（本文・署名で共用）----------
 var SIZES = [['', '文字サイズ'], ['12px', '小'], ['14px', '標準'], ['17px', '大'], ['21px', '特大']];
@@ -1425,36 +1442,43 @@ setupEditor('cBody'); setupEditor('sSig'); setupEditor('bBody');
 // ---------- 新しい配信 ----------
 function newCompose() {
   S.compose = { id: '', sel: {} };
-  $('cTitle').textContent = '新しい配信'; $('cStatus').textContent = '下書き'; $('cSubject').value = ''; edSet('cBody', S.settings.sample_body || ''); $('pickQ').value = '';
+  $('cTitle').textContent = '新しい配信'; $('cStatus').textContent = '下書き'; $('cSubject').value = ''; $('cAddr').value = (S.me && S.me.addrStyle) || 'full'; edSet('cBody', S.settings.sample_body || ''); $('pickQ').value = '';
   $('delDraftBtn').classList.add('hide');
   renderLinks(); renderPreview();
 }
 function openCompose(id) {
   call('getCampaign', id).then(function (c) {
     S.compose = { id: c.id, sel: {} };
-    $('cTitle').textContent = '下書きの続き'; $('cSubject').value = c.subject; edSet('cBody', c.body); $('delDraftBtn').classList.remove('hide');
+    $('cTitle').textContent = '下書きの続き'; $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; $('delDraftBtn').classList.remove('hide');
     show('compose'); renderLinks();
   }).catch(fail);
 }
 function links_() { var seen = {}, out = []; (edText('cBody').match(/https?:\/\/[^\s<>"'）){}]+/g) || []).forEach(function (u) { if (!seen[u]) { seen[u] = true; out.push(u); } }); return out; }
 function renderLinks() { var l = links_(); $('cLinks').innerHTML = l.length ? l.map(function (u, i) { return '<div class="linkrow">' + (i + 1) + '. ' + esc(u) + '</div>'; }).join('') : 'なし'; }
-function mergeLocal(text, rec, sender) {
-  return String(text).replace(/\{会社名\}/g, rec.company || '').replace(/\{氏名\}\s*様/g, rec.name ? rec.name + '様' : 'ご担当者様').replace(/\{氏名\}/g, rec.name || 'ご担当者').replace(/\{担当者名\}/g, sender || '');
+function surnameOf(name) { return String(name || '').trim().split(/[\s\u3000]+/)[0] || ''; }
+function mergeLocal(text, rec, sender, style) {
+  style = style || 'full';
+  var name = style === 'full' ? (rec.name || '') : surnameOf(rec.name), company = style === 'surname_only' ? '' : (rec.company || '');
+  var out = String(text).replace(/\{会社名\}/g, company).replace(/\{氏名\}\s*様/g, name ? name + '様' : 'ご担当者様').replace(/\{氏名\}/g, name || 'ご担当者').replace(/\{担当者名\}/g, sender || '');
+  if (!company) out = out.replace(/^(\s*<br\s*\/?>)+/, '').replace(/<div>\s*<\/div>/g, '').replace(/^\n+/, '');
+  return out;
 }
 function renderPreview() {
   var sub = $('cSubject').value.trim(), body = edHtml('cBody');
   if (!sub && !body) { $('pv').innerHTML = '<div class="empty">件名と本文を入れるとここに出ます</div>'; return; }
   var rid = $('pvRec').value, rec = S.recs.filter(function (r) { return r.id === rid; })[0] || { company: '株式会社サンプル', name: '山田 太郎', email: 'sample@example.jp' };
   var me = S.me || {}, st = S.settings;
-  var html = autolinkPv(mergeLocal(body, rec, me.name));
-  var sig = autolinkPv(mergeLocal(sigHtml(me, st), rec, me.name));
-  $('pv').innerHTML = '<div class="mail-h">差出人: <b>' + esc(me.name || '（名前未登録）') + '</b> &lt;' + esc(me.email) + '&gt;<br>宛先: ' + esc(rec.email) + '<br>件名: <b>' + esc(mergeLocal(sub, rec, me.name)) + '</b></div>' +
+  var st2 = $('cAddr').value;
+  var html = autolinkPv(mergeLocal(body, rec, me.name, st2));
+  var sig = autolinkPv(mergeLocal(sigHtml(me, st), rec, me.name, st2));
+  $('pv').innerHTML = '<div class="mail-h">差出人: <b>' + esc(me.name || '（名前未登録）') + '</b> &lt;' + esc(me.email) + '&gt;<br>宛先: ' + esc(rec.email) + '<br>件名: <b>' + esc(mergeLocal(sub, rec, me.name, st2)) + '</b></div>' +
     '<div style="line-height:1.5">' + html + '<br><br>--<br>' + sig + '<p style="font-size:12px;color:#888">' + esc(st.unsub_text) + '<br><a href="#" onclick="return false">配信停止</a></p></div>';
 }
 ['cSubject', 'cBody'].forEach(function (id) { $(id).oninput = function () { renderLinks(); clearTimeout(S.pvTimer); S.pvTimer = setTimeout(renderPreview, 200); }; });
+$('cAddr').onchange = renderPreview;
 $('pvRec').onchange = renderPreview;
 document.querySelectorAll('.chip').forEach(function (b) { b.onmousedown = function (e) { e.preventDefault(); }; b.onclick = function () { edInsert(b.dataset.ed || 'cBody', b.dataset.ins); }; });
-function compVals() { return { subject: $('cSubject').value, body: edHtml('cBody') }; }
+function compVals() { return { subject: $('cSubject').value, body: edHtml('cBody'), addrStyle: $('cAddr').value }; }
 function allTags(list) { var seen = {}, out = []; list.forEach(function (r) { (r.tags || '').split(', ').forEach(function (t) { if (t && !seen[t]) { seen[t] = true; out.push(t); } }); }); return out.sort(); }
 function fillTagSel(sel, list) { var v = sel.value; sel.innerHTML = '<option value="">タグ: すべて</option>' + allTags(list).map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') + '<option value="-">（タグなし）</option>'; sel.value = v; if (sel.value !== v) sel.value = ''; }
 function matchGenre(r, g) { return !g || (g === '-' ? !r.genre : r.genre === g); }
@@ -1533,7 +1557,7 @@ function readyModal(id) {
   call('getCampaign', id).then(function (c) {
     var mine = c.ownerEmail === S.me.email, canDel = mine || c.preparedBy === S.me.email || S.me.isAdmin;
     var rec = { company: '株式会社サンプル', name: '山田 太郎' };
-    var body = autolinkPv(mergeLocal(c.body, rec, mine ? S.me.name : c.ownerName));
+    var body = autolinkPv(mergeLocal(c.body, rec, mine ? S.me.name : c.ownerName, c.addrStyle));
     modal('<div class="mh"><h3>送信待ちの配信</h3><span class="sp"></span><span class="tag ready">送信待ち</span></div><div class="mb">' +
       '<p style="margin:0 0 10px"><b>' + esc(c.subject) + '</b></p>' +
       '<p class="hint" style="margin:0 0 12px">' + esc(c.preparedByName || c.preparedBy) + ' さんが準備　→　差出人: <b>' + esc(c.ownerName) + '</b>（' + esc(c.ownerEmail) + '）　宛先 ' + c.total + ' 件</p>' +
@@ -1561,7 +1585,7 @@ function renderBulk() {
   $('bRecentDays').textContent = S.recentDays;
   fillTagSel($('bTag'), S.recs); $('bTag').querySelector('option[value="-"]').remove();
   $('bGenre').innerHTML = '<option value="">ジャンル: すべて</option>' + S.genres.map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('');
-  if (!edText('bBody')) edSet('bBody', S.settings.sample_body || ''); // 新しい配信と同じ見本の文章
+  if (!edText('bBody')) { edSet('bBody', S.settings.sample_body || ''); $('bAddr').value = (S.me && S.me.addrStyle) || 'full'; } // 新しい配信と同じ見本の文章・宛名の形は自分の既定
   if (!$('bOwners').children.length) $('bOwners').innerHTML = S.members.map(function (m) { return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" value="' + esc(m.email) + '" checked style="height:auto">' + esc(m.name) + '</label>'; }).join('');
   renderBulkPv();
 }
@@ -1569,10 +1593,11 @@ function renderBulkPv() {
   var sub = $('bSubject').value.trim(), body = edHtml('bBody');
   if (!sub && !body) { $('bPv').innerHTML = '<div class="empty">件名と本文を入れるとここに出ます</div>'; return; }
   var rec = { company: '株式会社サンプル', name: '山田 太郎' };
-  $('bPv').innerHTML = '<div class="mail-h">差出人: <b>（各担当者）</b><br>宛先: sample@example.jp<br>件名: <b>' + esc(mergeLocal(sub, rec, '（担当者名）')) + '</b></div><div style="line-height:1.5">' + autolinkPv(mergeLocal(body, rec, '（担当者名）')) + '<br><br>--<br><span class="hint">（各担当者の署名）</span></div>';
+  $('bPv').innerHTML = '<div class="mail-h">差出人: <b>（各担当者）</b><br>宛先: sample@example.jp<br>件名: <b>' + esc(mergeLocal(sub, rec, '（担当者名）', $('bAddr').value)) + '</b></div><div style="line-height:1.5">' + autolinkPv(mergeLocal(body, rec, '（担当者名）', $('bAddr').value)) + '<br><br>--<br><span class="hint">（各担当者の署名）</span></div>';
 }
 function bulkDirty() { B.checked = false; $('bPrepare').disabled = true; $('bHint').textContent = '対象が変わりました。もう一度「対象を確認する」を押してください'; }
 $('bSubject').oninput = function () { clearTimeout(S.pvTimer); S.pvTimer = setTimeout(renderBulkPv, 200); };
+$('bAddr').onchange = renderBulkPv;
 $('bBody').addEventListener('input', function () { clearTimeout(S.pvTimer); S.pvTimer = setTimeout(renderBulkPv, 200); });
 ['bTag', 'bGenre', 'bRecent'].forEach(function (id) { $(id).onchange = bulkDirty; });
 $('bOwners').addEventListener('change', bulkDirty);
@@ -1590,7 +1615,7 @@ $('bPrepare').onclick = function () {
   var total = B.targets.reduce(function (a, x) { return a + x.count; }, 0);
   if (!confirm(B.targets.length + ' 人の担当者に、合計 ' + total + ' 件の配信を「送信待ち」として準備します。よろしいですか？\n（この時点ではまだメールは送られません）')) return;
   $('bPrepare').disabled = true;
-  var f = bulkFilter(); f.subject = sub; f.body = body;
+  var f = bulkFilter(); f.subject = sub; f.body = body; f.addrStyle = $('bAddr').value;
   call('prepareBulk', f).then(function (r) {
     toast(r.made.length + ' 人分（' + r.total + ' 件）の配信を準備しました');
     $('bSubject').value = ''; edSet('bBody', S.settings.sample_body || ''); $('bTargets').innerHTML = ''; B = { checked: false, targets: [] }; $('bHint').textContent = '先に「対象を確認する」を押してください'; renderBulkPv();
@@ -1708,7 +1733,7 @@ $('recAdd').onclick = function () {
 // ---------- 署名・設定 ----------
 function renderSettings() {
   var m = S.me, st = S.settings;
-  $('sName').value = m.name; edSet('sSig', m.signature);
+  $('sName').value = m.name; edSet('sSig', m.signature); $('sAddr').value = m.addrStyle || 'full';
   $('sCompany').value = st.company; $('sAddress').value = st.address; $('sUnsub').value = st.unsub_text; $('sTplText').value = st.sig_template || '';
   $('autoSend').checked = !!S.autoSend; $('autoHour').textContent = S.autoHour || 9;
   renderSigPv();
@@ -1726,7 +1751,7 @@ $('sTpl').onclick = function () {
   var left = (edText('sSig').match(/\{[^}]+\}/g) || []); if (left.length) toast(left.join('・') + ' の部分を自分のものに書き換えてください');
 };
 $('sSave').onclick = function () {
-  call('setMyProfile', { name: $('sName').value, signature: edHtml('sSig') }).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail);
+  call('setMyProfile', { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value }).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail);
 };
 $('sSaveCo').onclick = function () {
   call('setSettings', { company: $('sCompany').value, address: $('sAddress').value, unsub_text: $('sUnsub').value, sig_template: $('sTplText').value }).then(function (s) { S.settings.company = s.company; S.settings.address = s.address; S.settings.unsub_text = s.unsub_text; S.settings.sig_template = s.sig_template || ''; toast('保存しました'); }).catch(fail);
