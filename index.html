@@ -309,7 +309,8 @@
           <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="recQ" type="text" placeholder="会社名・氏名・メールで探す"></div>
             <select id="recStatus"><option value="">状態: すべて</option><option value="ok">送れる</option><option value="unsub">配信停止</option><option value="bounce">不達</option></select>
             <select id="recGenre"><option value="">ジャンル: すべて</option></select><select id="recTag"><option value="">タグ: すべて</option></select>
-            <span class="count" id="recCount"></span><button class="btn danger hide" id="recDel">選択を削除</button><button class="btn primary" id="recAdd">＋ 宛先を追加</button></div>
+            <span class="count" id="recCount"></span><button class="btn danger hide" id="recDel">選択を削除</button><button class="btn" id="recSync" title="共有スプレッドシートの最新の内容を取り込みます">⟳ 最新リストを読込</button><button class="btn primary" id="recAdd">＋ 宛先を追加</button></div>
+          <div class="bar sub hide" id="syncBar"><span class="hint" id="syncInfo"></span><span class="sp"></span><button class="btn sm hide" id="recExport" title="サイトにあってシートに無い宛先をシートへ追加します（移行用）">サイトの宛先をシートへ書き出す</button><a class="hint" id="syncLink" href="#" target="_blank" rel="noopener">共有シートを開く ↗</a></div>
           <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="recAllCk" style="height:auto"></th><th>会社名</th><th>姓</th><th>名</th><th>メール</th><th>ジャンル</th><th>タグ</th><th>状態</th><th>担当</th><th>メモ</th><th>最終送信</th></tr></thead><tbody id="recBody"></tbody></table></div>
           <div class="empty hide" id="recEmpty">宛先がありません。「＋ 宛先を追加」から登録できます（まとめて貼り付けもできます）</div>
           <div class="hint" style="padding:10px 18px;border-top:1px solid var(--line)">会社名・姓・名・メール・タグ・メモはクリックしてその場で直せます（Enter で保存・Esc でやめる）。宛名の形「苗字」は「姓」の欄を使います。タグは「,」で区切って複数付けられます。担当者は引き継ぎのとき誰でも変えられます。文字の変更と削除は担当者と管理者だけです。</div>
@@ -331,6 +332,7 @@
               <div class="field"><label>会社名</label><input id="sCompany" type="text"></div>
               <div class="field"><label>住所</label><input id="sAddress" type="text"></div>
               <div class="field"><label>配信停止の案内文</label><textarea id="sUnsub" rows="2"></textarea></div>
+              <div class="field"><label>宛先リストの共有スプレッドシート（URL か ID）。「最新リストを読込」の読み込み元・書き戻し先</label><input id="sMaster" type="text" placeholder="https://docs.google.com/spreadsheets/d/…"></div>
               <div class="field"><label>署名のひな形（全員の「ひな形を入れる」の元。{名前} {メール} {会社名} {住所} は自動で入ります）</label><textarea id="sTplText" rows="8" style="font-size:12.5px;line-height:1.5"></textarea></div>
               <button class="btn primary" id="sSaveCo">保存</button></div></div>
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>自動送信（送信待ちの配信）</h2></div><div class="card-b">
@@ -350,6 +352,8 @@
 
   function Sheet(name) { this.name = name; this.data = []; this.textCols = {}; }
   Sheet.prototype.getName = function () { return this.name; };
+  Sheet.prototype.setName = function (n) { this.name = n; return this; };
+  Sheet.prototype.getMaxRows = function () { return Math.max(this.data.length, 1000); };
   Sheet.prototype.getLastRow = function () { return this.data.length; };
   Sheet.prototype.getLastColumn = function () { return this.data.reduce(function (m, r) { return Math.max(m, r.length); }, 0); };
   Sheet.prototype.appendRow = function (r) { this.data.push(this._conv(r.slice(), 1)); return this; };
@@ -542,7 +546,7 @@ var WORKER_URL = 'https://kcreate-dm.k-create.workers.dev';
 var TRACK_URL = WORKER_URL + '/'; // メールに入れる記録用URLの頭（settings の track_url で上書き可）
 var CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 var BATCH = 30; // 1回の sendBatch で送る件数（画面が繰り返し呼ぶ）
-var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei']; // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
+var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei', 'in_master']; // in_master=1: 共有シートに載っている（シートから消えたらサイトでも外す対象） // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
 var DEFAULT_GENRES = ['グルメ', 'スクール', 'ショップ', '暮らし', 'トータルケア', 'クリニック', '介護・福祉', '終活・士業', '企業', 'その他'];
 var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
 var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style'];
@@ -698,7 +702,7 @@ function init() {
     autoSend: PropertiesService.getUserProperties().getProperty('auto_send') === '1',
     autoHour: AUTO_HOUR,
     quota: MailApp.getRemainingDailyQuota(), // 今日あと何通送れるか（自分のアカウント）
-    settings: { company: s.company || '', address: s.address || '', unsub_text: s.unsub_text || '', sample_body: s.sample_body || '', sig_template: s.sig_template || '' },
+    settings: { company: s.company || '', address: s.address || '', unsub_text: s.unsub_text || '', sample_body: s.sample_body || '', sig_template: s.sig_template || '', master_sheet_id: s.master_sheet_id || '', master_synced: s.master_synced || '' },
     trackUrl: trackUrl_()
   };
 }
@@ -723,7 +727,8 @@ function setSettings(s) {
   var email = myEmail_();
   if (!isAdmin_(email)) throw new Error('会社の情報は管理者だけが変えられます');
   var sh = sheet_('settings'), rows = rows_('settings');
-  ['company', 'address', 'unsub_text', 'sig_template'].forEach(function (k) {
+  if (s.master_sheet_id !== undefined) s.master_sheet_id = masterIdOf_(s.master_sheet_id);
+  ['company', 'address', 'unsub_text', 'sig_template', 'master_sheet_id'].forEach(function (k) {
     if (s[k] === undefined) return;
     var v = String(s[k]).trim();
     for (var i = 0; i < rows.length; i++) if (String(rows[i][0]) === k) { sh.getRange(i + 2, 2).setValue(v); return; }
@@ -741,7 +746,23 @@ function recObj_(r) {
   var sei = String(r[12] || '').trim(), mei = String(r[13] || '').trim(), name = String(r[2] || '').trim();
   if (!sei && !mei && name) { var sp = splitName_(name); sei = sp.sei; mei = sp.mei; }
   return { id: String(r[0]), company: String(r[1]), name: joinName_(sei, mei), sei: sei, mei: mei, email: String(r[3]).toLowerCase(), ownerEmail: String(r[4]).toLowerCase(),
-           status: String(r[5]) || 'ok', note: String(r[6]), created: str_(r[7]), updated: str_(r[8]), genre: String(r[10] || ''), tags: String(r[11] || '') };
+           status: String(r[5]) || 'ok', note: String(r[6]), created: str_(r[7]), updated: str_(r[8]), genre: String(r[10] || ''), tags: String(r[11] || ''), inMaster: String(r[14] || '') === '1' };
+}
+// 共有シートに載った宛先に印を付ける（削除の同期対象）
+function markInMaster_(ids) {
+  var sh = sheet_('recipients'), rows = rows_('recipients'), changed = false;
+  rows.forEach(function (r, i) { if (ids.indexOf(String(r[0])) >= 0 && String(r[14] || '') !== '1') { sh.getRange(i + 2, 15).setValue('1'); changed = true; } });
+  if (changed) bust_('recipients');
+}
+// サイトの宛先のうち、まだ共有シートに無いものをシートへ書き出す（移行用・管理者）
+function exportToMaster() {
+  var email = myEmail_();
+  if (!isAdmin_(email)) throw new Error('シートへの書き出しは管理者だけができます');
+  var sh = masterSheet_(); if (!sh) throw new Error('共有シートが設定されていません（署名・設定 → 会社の情報）');
+  var cols = masterCols_(sh), map = masterIdRows_(sh, cols);
+  var list = rows_('recipients').filter(function (r) { return !r[9]; }).map(recObj_).filter(function (o) { return !map[o.id]; });
+  if (list.length) masterWrite_(list);
+  return { exported: list.length };
 }
 function genres_() { return rows_('genres').map(function (r) { return String(r[0]); }).filter(String); }
 function genreNorm_(g) { g = String(g || '').trim(); return genres_().indexOf(g) >= 0 ? g : ''; } // 一覧にないジャンルは空にする
@@ -778,7 +799,9 @@ function changeOwner(id, ownerEmail) {
   sheet_('recipients').getRange(hit.row, 5).setValue(ownerEmail);
   sheet_('recipients').getRange(hit.row, 9).setValue(now_());
   bust_('recipients');
-  return recObj_(findRecRow_(id).r);
+  var o2 = recObj_(findRecRow_(id).r);
+  masterWrite_([o2]);
+  return o2;
 }
 
 // まとめて追加。list = [{company, name, email}]。同じ担当者の同じメールは飛ばす
@@ -795,9 +818,9 @@ function addRecipients(list) {
     if (!isEmail_(e)) { bad.push(x.email || '(空)'); return; }
     if (have[e]) { skipped++; return; }
     have[e] = true;
-    out.push([newCode_(8), c, joinName_(sp.sei, sp.mei), e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags), sp.sei, sp.mei]);
+    out.push([newCode_(8), c, joinName_(sp.sei, sp.mei), e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags), sp.sei, sp.mei, '']);
   });
-  if (out.length) { sheet_('recipients').getRange(sheet_('recipients').getLastRow() + 1, 1, out.length, REC_HEAD.length).setValues(out); bust_('recipients'); }
+  if (out.length) { sheet_('recipients').getRange(sheet_('recipients').getLastRow() + 1, 1, out.length, REC_HEAD.length).setValues(out); bust_('recipients'); masterWrite_(out.map(recObj_)); }
   return { added: out.length, skipped: skipped, bad: bad };
 }
 
@@ -824,7 +847,9 @@ function updateRecipient(id, f) {
   sheet_('recipients').getRange(hit.row, 6, 1, 4).setValues([[st, String(f.note === undefined ? o.note : f.note), str_(hit.r[7]), now_()]]);
   if (f.genre !== undefined || f.tags !== undefined) sheet_('recipients').getRange(hit.row, 11, 1, 2).setValues([[f.genre === undefined ? o.genre : genreNorm_(f.genre), f.tags === undefined ? o.tags : tagsNorm_(f.tags)]]);
   bust_('recipients');
-  return recObj_(findRecRow_(id).r);
+  var o2 = recObj_(findRecRow_(id).r);
+  masterWrite_([o2]);
+  return o2;
 }
 function deleteRecipients(ids) {
   var email = myEmail_();
@@ -833,6 +858,7 @@ function deleteRecipients(ids) {
   var sh = sheet_('recipients');
   hits.forEach(function (h) { sh.getRange(h.row, 10).setValue('1'); });
   bust_('recipients');
+  masterDelete_(hits.map(function (h) { return String(h.r[0]); }));
   return { deleted: hits.length };
 }
 
@@ -872,6 +898,119 @@ function htmlToText_(html) {
   return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<(div|p)[^>]*>/gi, '\n').replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
     .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ---------- 共有スプレッドシート（宛先リストの正本）との同期（2026-10-31） ----------
+// settings.master_sheet_id = 共有シートのID。見出し名で列を見つける（順番は自由・見出しは変えない）。ID 列はサイトが振る
+var MASTER_SHEET_NAME = '宛先';
+var MASTER_COLS = ['ID', '会社名', '姓', '名', 'メール', '担当者', 'ジャンル', 'タグ', 'メモ', '状態', '最終送信日時'];
+var STATUS_JA = { ok: '送れる', unsub: '配信停止', bounce: '不達' }, STATUS_EN = { '送れる': 'ok', '配信停止': 'unsub', '不達': 'bounce', '': 'ok' };
+function masterIdOf_(v) { v = String(v || '').trim(); var m = v.match(/\/d\/([A-Za-z0-9_-]{4,})/); return m ? m[1] : v; }
+function masterSheet_() {
+  var id = masterIdOf_(setting_('master_sheet_id')); if (!id) return null;
+  var ss = SpreadsheetApp.openById(id);
+  return ss.getSheetByName(MASTER_SHEET_NAME) || ss.getSheets()[0];
+}
+// 見出し → 列番号（1始まり）。ID とメールが無ければエラー
+function masterCols_(sh) {
+  var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0], cols = {};
+  head.forEach(function (h, i) { h = String(h || '').trim(); if (h) cols[h] = i + 1; });
+  if (!cols['ID'] || !cols['メール']) throw new Error('共有シートの1行目に「ID」「メール」の見出しが見つかりません（見出しは変えないでください）');
+  return cols;
+}
+function masterIdRows_(sh, cols) { // ID → 行番号
+  var n = sh.getLastRow(), map = {};
+  if (n < 2) return map;
+  sh.getRange(2, cols['ID'], n - 1, 1).getValues().forEach(function (r, i) { var id = String(r[0] || '').trim(); if (id) map[id] = i + 2; });
+  return map;
+}
+// 読込: シート → サイト。ID が空の行には ID を振ってシートに書き戻す。シートに無くなった行はサイトでも外す
+function importMaster() {
+  var email = myEmail_();
+  checkMember_(email);
+  var sh = masterSheet_(); if (!sh) throw new Error('共有シートが設定されていません（署名・設定 → 会社の情報）');
+  var cols = masterCols_(sh), n = sh.getLastRow();
+  var vals = n < 2 ? [] : sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+  var names = {}; membersList_().forEach(function (m) { names[m.name] = m.email; names[m.name.replace(/[\s\u3000]/g, '')] = m.email; });
+  var recs = rows_('recipients'), byId = {}, used = {};
+  recs.forEach(function (r, i) { byId[String(r[0])] = { row: i + 2, r: r }; used[String(r[0])] = true; });
+  function cell(row, key) { return cols[key] ? String(row[cols[key] - 1] == null ? '' : row[cols[key] - 1]).trim() : ''; }
+  var out = { added: 0, updated: 0, removed: 0, warnings: [], total: 0 }, newIds = [], t = now_(), seen = {}, sheetSt = [];
+  var shRec = sheet_('recipients'), appendRows = [], lastMap = lastSentMap_();
+  vals.forEach(function (row, i) {
+    var em = cell(row, 'メール').toLowerCase(), company = cell(row, '会社名'), sei = cell(row, '姓'), mei = cell(row, '名');
+    if (!em && !company && !sei) return; // 空行
+    var line = i + 2;
+    if (!isEmail_(em)) { out.warnings.push(line + '行目: メールアドレスの形が正しくありません（' + (em || '空') + '）→ 取り込んでいません'); return; }
+    var id = cell(row, 'ID');
+    if (!id) { do { id = newCode_(8); } while (used[id] || byId[id]); used[id] = true; newIds.push([line, id]); }
+    var ownerName = cell(row, '担当者'), owner = names[ownerName] || names[ownerName.replace(/[\s\u3000]/g, '')] || '';
+    if (ownerName && !owner) out.warnings.push(line + '行目: 担当者「' + ownerName + '」がサイトの登録名にありません（担当なしで取り込み）');
+    if (!ownerName) out.warnings.push(line + '行目: 担当者が空です（担当なしで取り込み）');
+    var st = STATUS_EN[cell(row, '状態')]; if (st === undefined) { out.warnings.push(line + '行目: 状態「' + cell(row, '状態') + '」は 送れる／配信停止／不達 のどれかにしてください（送れる として取り込み）'); st = 'ok'; }
+    var genre = genreNorm_(cell(row, 'ジャンル')), tags = tagsNorm_(cell(row, 'タグ')), note = cell(row, 'メモ');
+    seen[id] = true; out.total++;
+    var hit = byId[id];
+    if (hit) {
+      var cur = recObj_(hit.r);
+      if (cur.status === 'unsub' && st !== 'unsub') { st = 'unsub'; sheetSt.push([line, '配信停止']); } // サイト側の配信停止が優先（本人が止めたもの）
+      var next = [id, company, joinName_(sei, mei), em, owner, st, note, str_(hit.r[7]), t, '', genre, tags, sei, mei, '1'];
+      var changed = [1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14].some(function (k) { return String(hit.r[k] == null ? '' : hit.r[k]) !== String(next[k]); }) || !!hit.r[9];
+      if (changed) { shRec.getRange(hit.row, 1, 1, REC_HEAD.length).setValues([next]); out.updated++; }
+    } else {
+      appendRows.push([id, company, joinName_(sei, mei), em, owner, st, note, t, t, '', genre, tags, sei, mei, '1']); out.added++;
+    }
+  });
+  if (appendRows.length) shRec.getRange(shRec.getLastRow() + 1, 1, appendRows.length, REC_HEAD.length).setValues(appendRows);
+  // シートに載っていた宛先（in_master）がシートから消えていたら、サイトでも外す。シートと紐づいていない宛先はそのまま
+  recs.forEach(function (r, i) { if (!r[9] && String(r[14] || '') === '1' && !seen[String(r[0])]) { shRec.getRange(i + 2, 10).setValue('1'); out.removed++; } });
+  bust_('recipients');
+  // シートへの書き戻し: ID・状態（配信停止）・最終送信日時
+  newIds.forEach(function (x) { sh.getRange(x[0], cols['ID']).setValue(x[1]); });
+  if (cols['状態']) sheetSt.forEach(function (x) { sh.getRange(x[0], cols['状態']).setValue(x[1]); });
+  if (cols['最終送信日時'] && vals.length) {
+    var idCol = cols['ID'], lsCol = cols['最終送信日時'];
+    var ids2 = sh.getRange(2, idCol, vals.length, 1).getValues();
+    var ls = ids2.map(function (r) { var v = lastMap[String(r[0] || '').trim()]; return [v || '']; });
+    var curLs = sh.getRange(2, lsCol, vals.length, 1).getValues();
+    if (ls.some(function (x, k) { return x[0] && String(curLs[k][0] || '') !== x[0]; })) sh.getRange(2, lsCol, vals.length, 1).setValues(ls.map(function (x, k) { return [x[0] || String(curLs[k][0] || '')]; }));
+  }
+  var stamp = now_(); setSetting_('master_synced', stamp); out.synced = stamp;
+  return out;
+}
+function setSetting_(key, val) {
+  var sh = sheet_('settings'), rows = rows_('settings');
+  for (var i = 0; i < rows.length; i++) if (String(rows[i][0]) === key) { sh.getRange(i + 2, 2).setValue(val); bust_('settings'); return; }
+  sh.appendRow([key, val]); bust_('settings');
+}
+// サイトで直した宛先をシートへ（ID で突き合わせ。無ければ追加）。シートが無い・開けないときは黙って何もしない
+function masterWrite_(list) {
+  try {
+    var sh = masterSheet_(); if (!sh || !list.length) return;
+    var cols = masterCols_(sh), map = masterIdRows_(sh, cols), names = {};
+    membersList_().forEach(function (m) { names[m.email] = m.name; });
+    list.forEach(function (o) {
+      var vals = { 'ID': o.id, '会社名': o.company, '姓': o.sei, '名': o.mei, 'メール': o.email, '担当者': names[o.ownerEmail] || '', 'ジャンル': o.genre, 'タグ': o.tags, 'メモ': o.note, '状態': STATUS_JA[o.status] || '送れる' };
+      var row = map[o.id];
+      if (!row) { row = sh.getLastRow() + 1; map[o.id] = row; }
+      Object.keys(vals).forEach(function (k) { if (cols[k]) sh.getRange(row, cols[k]).setValue(vals[k]); });
+    });
+    markInMaster_(list.map(function (o) { return o.id; }));
+  } catch (e) { console.error('masterWrite_ ' + e); }
+}
+function masterSetCells_(ids, kv) {
+  try {
+    var sh = masterSheet_(); if (!sh || !ids.length) return;
+    var cols = masterCols_(sh), map = masterIdRows_(sh, cols);
+    ids.forEach(function (id) { var row = map[String(id)]; if (!row) return; Object.keys(kv).forEach(function (k) { if (cols[k]) sh.getRange(row, cols[k]).setValue(kv[k]); }); });
+  } catch (e) { console.error('masterSetCells_ ' + e); }
+}
+function masterDelete_(ids) {
+  try {
+    var sh = masterSheet_(); if (!sh || !ids.length) return;
+    var cols = masterCols_(sh), map = masterIdRows_(sh, cols);
+    ids.map(function (id) { return map[String(id)]; }).filter(Boolean).sort(function (a, b) { return b - a; }).forEach(function (row) { sh.deleteRow(row); });
+  } catch (e) { console.error('masterDelete_ ' + e); }
 }
 
 // ---------- 差し込み ----------
@@ -1164,7 +1303,7 @@ function sendBatch(id) {
   try {
     var me = member_(email), s = settings_(), sh = sheet_('sends'), rows = rows_('sends');
     var seiOf = {}; rows_('recipients').forEach(function (r) { seiOf[String(r[0])] = recObj_(r).sei; }); // 苗字の宛名用
-    var n = 0, sent = 0, failed = 0, remaining = 0;
+    var n = 0, sent = 0, failed = 0, remaining = 0, sentIds = [];
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][0]) !== c.id || String(rows[i][6]) !== 'pending') continue;
       if (n >= BATCH) { remaining++; continue; }
@@ -1173,7 +1312,7 @@ function sendBatch(id) {
       try {
         GmailApp.sendEmail(rec.email, merge_(c.subject, rec, me.name, c.addrStyle), buildText_(c, rec, me, token, s), { htmlBody: buildHtml_(c, rec, me, token, s), name: me.name });
         sh.getRange(i + 2, 7, 1, 3).setValues([['sent', now_(), '']]);
-        sent++;
+        sent++; sentIds.push(String(rows[i][1]));
       } catch (e) {
         sh.getRange(i + 2, 7, 1, 3).setValues([['failed', now_(), String(e.message || e).slice(0, 200)]]);
         failed++;
@@ -1183,6 +1322,7 @@ function sendBatch(id) {
     sheet_('campaigns').getRange(hit.row, 9, 1, 2).setValues([[total.sent, total.failed]]);
     if (!remaining) sheet_('campaigns').getRange(hit.row, 5).setValue('sent');
     bust_('sends'); bust_('campaigns');
+    if (sentIds.length) masterSetCells_(sentIds, { '最終送信日時': now_() });
     return { sent: total.sent, failed: total.failed, remaining: remaining, done: !remaining, quota: MailApp.getRemainingDailyQuota() };
   } finally { lock.releaseLock(); }
 }
@@ -1214,7 +1354,7 @@ function getCampaignStats(id) {
 function markUnsub_(ids) {
   var sh = sheet_('recipients'), rows = rows_('recipients'), changed = false;
   rows.forEach(function (r, i) { if (ids.indexOf(String(r[0])) >= 0 && String(r[5]) !== 'unsub') { sh.getRange(i + 2, 6).setValue('unsub'); sh.getRange(i + 2, 9).setValue(now_()); changed = true; } });
-  if (changed) bust_('recipients');
+  if (changed) { bust_('recipients'); masterSetCells_(ids, { '状態': '配信停止' }); }
 }
 
 // 配信一覧に出す開封・クリックのまとめ（送信済みのものだけ・一括で取る）
@@ -1317,6 +1457,19 @@ var WORKER_TOKEN = 'test-token';
   saveCampaign(null, { subject: '【くれよん1月号】新年号の広告枠のご案内（下書き）', body: '{会社名}\n{氏名}様\n\nいつもお世話になっております。くれよんの{担当者名}です。\n\n1月号の広告枠のご案内です。\n\nhttps://example.jp/kureyon/2701\n\nよろしくお願いいたします。' });
   // まとめて準備の見本: 平山がタグ「12月号掲載」の宛先に全員分を「送信待ち」で準備
   prepareBulk({ subject: '【12月号DM】くれよん12月号 掲載のご案内', body: '{会社名}\n{氏名}様\n\nいつもお世話になっております。くれよんの{担当者名}です。\n\n12月号（11月19日発行）の掲載のご案内です。\n\nhttps://example.jp/kureyon/1212\n\nよろしくお願いいたします。', tag: '12月号掲載', excludeRecent: false });
+  // 共有シート（宛先リストの正本）の見本: 既存の宛先3件（ID付き）＋新しい3件（ID空）＋担当者名が合わない1件
+  (function () {
+    var mss = SpreadsheetApp.create('一斉DM 宛先リスト');
+    var msh = mss.getSheets()[0]; msh.setName('宛先');
+    msh.appendRow(['ID', '会社名', '姓', '名', 'メール', '担当者', 'ジャンル', 'タグ', 'メモ', '状態', '最終送信日時', '重複（他の担当者）']);
+    var mine = listRecipients().filter(function (r) { return r.ownerEmail === 'hirayama@k-create.co.jp' && r.status === 'ok'; }).slice(0, 3);
+    mine.forEach(function (r) { msh.appendRow([r.id, r.company, r.sei, r.mei, r.email, '平山', r.genre, r.tags, r.note, '送れる', '', '']); });
+    msh.appendRow(['', '株式会社シート追加A', '佐々木', '健一', 'sheet-a@example.jp', '平山', 'グルメ', '12月号DM', 'シートで追加した宛先', '送れる', '', '']);
+    msh.appendRow(['', '有限会社シート追加B', '高橋', '', 'sheet-b@example.jp', '佐藤', 'スクール', '見込み', '', '', '', '']);
+    msh.appendRow(['', 'シート追加C商店', '渡辺', '直樹', 'sheet-c@example.jp', '田中', '', '', '', '送れる', '', '']);
+    msh.appendRow(['', '担当者ちがい株式会社', '中村', '', 'sheet-d@example.jp', '山本', 'ショップ', '', '', '送れる', '', '']);
+    var st = ss_().getSheetByName('settings'); st.appendRow(['master_sheet_id', mss.getId()]); bust_('settings');
+  })();
   __env.mails.length = 0; // 送信上限の表示を 1500 に戻す
   __env.user = me;
 
@@ -1377,6 +1530,7 @@ document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = fun
 function boot() {
   call('init').then(function (r) {
     S.me = r.me; S.members = r.members; S.settings = r.settings; S.quota = r.quota; S.genres = r.genres || []; S.recentDays = r.recentDays || 30; S.autoSend = !!r.autoSend; S.autoHour = r.autoHour || 9;
+    renderSyncBar();
     $('pickRecentDays').textContent = S.recentDays;
     [$('pickGenre'), $('recGenre')].forEach(function (sel) { sel.innerHTML = '<option value="">ジャンル: すべて</option>' + S.genres.map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('') + '<option value="-">（ジャンルなし）</option>'; });
     $('quota').textContent = r.quota;
@@ -1818,6 +1972,31 @@ function startEdit(td) {
 }
 function updateRecSel() { var n = Object.keys(S.recSel).length; $('recDel').classList.toggle('hide', !n); $('recDel').textContent = '選択を削除（' + n + '）'; }
 $('recQ').oninput = renderRecs; $('recStatus').onchange = $('recGenre').onchange = $('recTag').onchange = renderRecs;
+function renderSyncBar() {
+  var id = S.settings.master_sheet_id;
+  $('recSync').classList.toggle('hide', !id);
+  $('syncBar').classList.toggle('hide', !id);
+  if (!id) return;
+  $('syncInfo').textContent = '宛先の正本は共有スプレッドシートです。' + (S.settings.master_synced ? '最終読込: ' + S.settings.master_synced : 'まだ読み込んでいません') + '。サイトで直した内容はシートにも書き戻されます';
+  $('syncLink').href = 'https://docs.google.com/spreadsheets/d/' + id + '/edit';
+  $('recExport').classList.toggle('hide', !S.me.isAdmin);
+}
+$('recExport').onclick = function () {
+  if (!confirm('サイトにあってシートに無い宛先を、共有シートの末尾に追加します。よろしいですか？')) return;
+  var b = $('recExport'); b.disabled = true;
+  call('exportToMaster').then(function (r) { toast(r.exported ? r.exported + ' 件をシートに書き出しました' : 'シートに無い宛先はありませんでした'); return loadRecs(); }).catch(fail).then(function () { b.disabled = false; });
+};
+$('recSync').onclick = function () {
+  var b = $('recSync'); b.disabled = true; b.textContent = '読み込んでいます…';
+  call('importMaster').then(function (r) {
+    S.settings.master_synced = r.synced; renderSyncBar();
+    var msg = '読み込みました：追加 ' + r.added + '・更新 ' + r.updated + '・シートから消えた ' + r.removed + '（全 ' + r.total + ' 件）';
+    if (r.warnings.length) {
+      modal('<div class="mh"><h3>読み込み結果</h3></div><div class="mb"><p style="margin:0 0 10px">' + esc(msg) + '</p><p class="hint" style="margin:0 0 6px">確認してほしい行（' + r.warnings.length + ' 件）:</p><div style="max-height:260px;overflow:auto;font-size:12.5px;line-height:1.7">' + r.warnings.map(function (w) { return '・' + esc(w); }).join('<br>') + '</div></div><div class="mf"><button class="btn primary" data-close>閉じる</button></div>', function (bg) { bg.querySelector('[data-close]').onclick = function () { bg.remove(); }; });
+    } else toast(msg);
+    return loadRecs();
+  }).catch(fail).then(function () { b.disabled = false; b.textContent = '⟳ 最新リストを読込'; });
+};
 $('recAllCk').onchange = function () { document.querySelectorAll('#recBody .rck:not(:disabled)').forEach(function (ck) { if ($('recAllCk').checked) S.recSel[ck.dataset.id] = true; else delete S.recSel[ck.dataset.id]; }); renderRecs(); };
 $('recDel').onclick = function () {
   var ids = Object.keys(S.recSel); if (!ids.length || !confirm(ids.length + ' 件の宛先を削除しますか？')) return;
@@ -1858,7 +2037,7 @@ $('recAdd').onclick = function () {
 function renderSettings() {
   var m = S.me, st = S.settings;
   $('sName').value = m.name; edSet('sSig', m.signature); $('sAddr').value = m.addrStyle || 'full';
-  $('sCompany').value = st.company; $('sAddress').value = st.address; $('sUnsub').value = st.unsub_text; $('sTplText').value = st.sig_template || '';
+  $('sCompany').value = st.company; $('sAddress').value = st.address; $('sUnsub').value = st.unsub_text; $('sTplText').value = st.sig_template || ''; $('sMaster').value = st.master_sheet_id || '';
   $('autoSend').checked = !!S.autoSend; $('autoHour').textContent = S.autoHour || 9;
   renderSigPv();
 }
@@ -1878,7 +2057,7 @@ $('sSave').onclick = function () {
   call('setMyProfile', { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value }).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail);
 };
 $('sSaveCo').onclick = function () {
-  call('setSettings', { company: $('sCompany').value, address: $('sAddress').value, unsub_text: $('sUnsub').value, sig_template: $('sTplText').value }).then(function (s) { S.settings.company = s.company; S.settings.address = s.address; S.settings.unsub_text = s.unsub_text; S.settings.sig_template = s.sig_template || ''; toast('保存しました'); }).catch(fail);
+  call('setSettings', { company: $('sCompany').value, address: $('sAddress').value, unsub_text: $('sUnsub').value, sig_template: $('sTplText').value, master_sheet_id: $('sMaster').value }).then(function (s) { S.settings.company = s.company; S.settings.address = s.address; S.settings.unsub_text = s.unsub_text; S.settings.sig_template = s.sig_template || ''; S.settings.master_sheet_id = s.master_sheet_id || ''; $('sMaster').value = S.settings.master_sheet_id; renderSyncBar(); toast('保存しました'); }).catch(fail);
 };
 
 boot();
