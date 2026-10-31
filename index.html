@@ -274,7 +274,7 @@
 
       <!-- まとめて準備 -->
       <section id="bulk" class="hide">
-        <div class="notice">担当者の代わりに、<b>全員分の配信をまとめて準備</b>します。準備した配信は各担当者の「配信一覧」に <span class="tag ready">送信待ち</span> として並び、<b>担当者本人のアドレス・担当者名・署名</b>で送られます（本人がボタンを押すか、本人が「自動送信」をオンにしていれば毎朝自動で）。送信数も担当者ごとに数えられます。</div>
+        <div class="notice">担当者の代わりに、<b>全員分の配信をまとめて準備</b>します。準備した配信は各担当者の「配信一覧」に <span class="tag ready">送信待ち</span> として並び、<b>担当者本人のアドレス・担当者名・署名</b>で送られます。本人が「自動送信」をオンにしていれば、<b>本人の操作なしで1時間以内に自動送信</b>されます（8〜19時。送ったことは本人にメールで知らせます）。オフの人は、本人が配信一覧の「送信する」を押すまで送られません。送信数も担当者ごとに数えられます。</div>
         <div class="grid2">
           <div>
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>件名と本文（全員共通）</h2><span class="sp"></span><select id="bLoad" style="max-width:260px"><option value="">読み込む（下書き・過去の配信）…</option></select></div>
@@ -337,8 +337,8 @@
               <div class="field"><label>署名のひな形（全員の「ひな形を入れる」の元。{名前} {メール} {会社名} {住所} は自動で入ります）</label><textarea id="sTplText" rows="8" style="font-size:12.5px;line-height:1.5"></textarea></div>
               <button class="btn primary" id="sSaveCo">保存</button></div></div>
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>自動送信（送信待ちの配信）</h2></div><div class="card-b">
-              <label class="switch"><input type="checkbox" id="autoSend"><span>送信待ちの配信を、毎朝 <b id="autoHour">9</b> 時にあなたのアカウントから自動で送る</span></label>
-              <p class="hint" style="margin:10px 0 0">オフのときは、配信一覧の「送信待ち」を開いて「送信する」を押します。オンにしても、送る前に見ておきたい配信は先に開いて削除できます。</p></div></div>
+              <label class="switch"><input type="checkbox" id="autoSend"><span>他の人がまとめて準備した配信を、<b>あなたの操作なしで</b>あなたのアカウントから自動で送る（1時間ごと・8〜19時）</span></label><span id="autoHour" class="hide"></span>
+              <p class="hint" style="margin:10px 0 0">オンにするのは最初に1回だけです。送ったときは、件名と件数をあなたにメールで知らせます。オフのときは、配信一覧の「送信待ち」を開いて「送信する」を押します。</p></div></div>
             <div class="card"><div class="card-h"><h2>署名の見え方</h2></div><div class="card-b"><div class="preview" id="sigPv" style="min-height:120px"></div></div></div>
           </div>
         </div>
@@ -461,7 +461,7 @@
         getService: function () { return { getUrl: function () { return opts.scriptUrl || ''; } }; },
         getProjectTriggers: function () { return env.triggers.filter(function (t) { return t.owner === env.user; }).map(function (t) { return { getHandlerFunction: function () { return t.fn; }, _t: t }; }); },
         deleteTrigger: function (tr) { var i = env.triggers.indexOf(tr._t); if (i >= 0) env.triggers.splice(i, 1); },
-        newTrigger: function (fn) { var b = { timeBased: function () { return b; }, atHour: function () { return b; }, everyDays: function () { return b; }, create: function () { env.triggers.push({ owner: env.user, fn: fn }); } }; return b; }
+        newTrigger: function (fn) { var b = { timeBased: function () { return b; }, atHour: function () { return b; }, everyDays: function () { return b; }, everyHours: function () { return b; }, create: function () { env.triggers.push({ owner: env.user, fn: fn }); } }; return b; }
       },
       Session: {
         getActiveUser: function () { return { getEmail: function () { return env.user; } }; },
@@ -480,7 +480,7 @@
         if (/@fail\./.test(to)) throw new Error('Invalid email: ' + to);
         env.mails.push({ from: env.user, to: to, subject: subject, body: body, htmlBody: (opt || {}).htmlBody || '', name: (opt || {}).name || '', at: Date.now() });
       } },
-      MailApp: { getRemainingDailyQuota: function () { return 1500 - env.mails.filter(function (m) { return m.from === env.user; }).length; } },
+      MailApp: { sendEmail: function (to, subject, body) { env.notices = env.notices || []; env.notices.push({ from: env.user, to: to, subject: subject, body: body }); }, getRemainingDailyQuota: function () { return 1500 - env.mails.filter(function (m) { return m.from === env.user; }).length; } },
       ContentService: {
         MimeType: { JSON: 'json', JAVASCRIPT: 'js' },
         createTextOutput: function (s) { return { body: s, setMimeType: function (m) { this.mime = m; return this; } }; }
@@ -557,9 +557,10 @@ var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
 var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style'];
 var ADDR_STYLES = ['full', 'surname', 'surname_only']; // 宛名の形: 会社名＋フルネーム / 会社名＋苗字 / 苗字だけ（会社名なし）
 function addrStyle_(v) { return ADDR_STYLES.indexOf(String(v || '')) >= 0 ? String(v) : 'full'; } // status: draft / ready（送信待ち・他の人が準備）/ sending / sent
-var AUTO_HOUR = 9; // 自動送信の時刻（送信待ちを本人のアカウントで送る）
+var AUTO_HOUR = 9; // （旧）毎朝の時刻。2026-10-31〜は1時間ごと
+var AUTO_FROM = 8, AUTO_TO = 19; // 自動送信する時間帯（8:00〜19:59。夜中には送らない）
 var SEND_HEAD = ['campaign_id', 'recipient_id', 'token', 'email', 'company', 'name', 'status', 'sent_at', 'error']; // status: pending / sent / failed
-var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature', 'addr_style']; // addr_style = その人のいつもの宛名の形（新しい配信の既定）
+var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature', 'addr_style', 'auto_send']; // auto_send=1: 自動送信オン（管理者・準備する人が見られるように） // addr_style = その人のいつもの宛名の形（新しい配信の既定）
 var DEFAULT_SETTINGS = [
   ['company', '株式会社 ケイ・クリエイト'],
   ['address', '〒493-0005　愛知県一宮市木曽川町里小牧寺東125番地'],
@@ -664,10 +665,10 @@ function settings_() {
 function isAdmin_(email) { return rows_('admins').some(function (r) { return String(r[0]).toLowerCase() === email; }); }
 function member_(email) {
   var r = rows_('members').filter(function (x) { return String(x[0]).toLowerCase() === email; })[0];
-  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '', addrStyle: addrStyle_(r ? r[5] : '') };
+  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '', addrStyle: addrStyle_(r ? r[5] : ''), autoSend: !!(r && String(r[6] || '') === '1') };
 }
 function membersList_() {
-  return rows_('members').map(function (r) { return { email: String(r[0]).toLowerCase(), name: String(r[1]) }; }).filter(function (m) { return m.name; });
+  return rows_('members').map(function (r) { return { email: String(r[0]).toLowerCase(), name: String(r[1]), autoSend: String(r[6] || '') === '1' }; }).filter(function (m) { return m.name; });
 }
 function checkMember_(email) {
   if (!member_(email).name) throw new Error('先に自分の名前を登録してください（左下の「名前を登録」）');
@@ -704,8 +705,8 @@ function init() {
     members: membersList_(),
     genres: genres_(),
     recentDays: RECENT_DAYS,
-    autoSend: PropertiesService.getUserProperties().getProperty('auto_send') === '1',
-    autoHour: AUTO_HOUR,
+    autoSend: autoSendOn_(),
+    autoHour: AUTO_HOUR, autoFrom: AUTO_FROM, autoTo: AUTO_TO,
     quota: MailApp.getRemainingDailyQuota(), // 今日あと何通送れるか（自分のアカウント）
     settings: { company: s.company || '', address: s.address || '', unsub_text: s.unsub_text || '', sample_body: s.sample_body || '', sig_template: s.sig_template || '', master_sheet_id: s.master_sheet_id || '', master_synced: s.master_synced || '' },
     trackUrl: trackUrl_()
@@ -1308,7 +1309,8 @@ function bulkTargets_(f) {
   return Object.keys(by).sort().map(function (e) { return { email: e, name: names[e], count: by[e].length, recipients: by[e] }; });
 }
 function previewBulk(f) {
-  return bulkTargets_(f).map(function (t) { return { email: t.email, name: t.name, count: t.count }; });
+  var auto = {}; membersList_().forEach(function (m) { auto[m.email] = m.autoSend; });
+  return bulkTargets_(f).map(function (t) { return { email: t.email, name: t.name, count: t.count, autoSend: !!auto[t.email] }; });
 }
 // 担当者ごとに「送信待ち」の配信を作る（差出人・{担当者名}・署名は送るときに担当者本人のものになる）
 function prepareBulk(f) {
@@ -1345,6 +1347,8 @@ function startReady(id) {
 function autoSendTick() {
   var email = myEmail_();
   if (!email) return;
+  var h = Number(Utilities.formatDate(new Date(), TZ, 'H'));
+  if (h < AUTO_FROM || h > AUTO_TO) return []; // 夜中は送らない
   var out = [];
   listCampaigns().filter(function (c) { return c.status === 'ready' && c.ownerEmail === email; }).forEach(function (c) {
     try {
@@ -1353,16 +1357,28 @@ function autoSendTick() {
       out.push({ id: c.id, sent: r.sent, failed: r.failed });
     } catch (e) { console.error(e); out.push({ id: c.id, error: String(e.message || e) }); }
   });
+  // 代わりに送ったことを本人に知らせる（自分あて1通）
+  if (out.length) {
+    var camps = {}; listCampaigns().forEach(function (c) { camps[c.id] = c; });
+    var lines = out.map(function (o) { var c = camps[o.id] || {}; return '・' + (c.subject || o.id) + (c.preparedByName ? '（' + c.preparedByName + ' さんが準備）' : '') + '：' + (o.error ? '送れませんでした（' + o.error + '）' : o.sent + ' 通送信' + (o.failed ? '・失敗 ' + o.failed : '')); });
+    try { MailApp.sendEmail(email, '【一斉DM】あなたのアドレスから配信しました（' + out.length + ' 件）', 'まとめて準備された配信を、あなたのアドレスから自動で送りました。\n\n' + lines.join('\n') + '\n\nお客様からの返信はあなたの受信箱に届きます。開封・クリックは一斉DMの「配信一覧」で見られます。\n（自動送信は「署名・設定」でオフにできます）'); } catch (e) { console.error(e); }
+  }
   return out;
 }
+function autoSendOn_() { return member_(myEmail_()).autoSend; }
 function setAutoSend(on) {
   var email = myEmail_();
   checkMember_(email);
   var mine = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'autoSendTick'; });
-  if (on && !mine.length) ScriptApp.newTrigger('autoSendTick').timeBased().atHour(AUTO_HOUR).everyDays(1).create();
-  if (!on) mine.forEach(function (t) { ScriptApp.deleteTrigger(t); });
+  mine.forEach(function (t) { ScriptApp.deleteTrigger(t); }); // 作り直す（以前の「毎朝9時」も1時間ごとに）
+  if (on) ScriptApp.newTrigger('autoSendTick').timeBased().everyHours(1).create();
   PropertiesService.getUserProperties().setProperty('auto_send', on ? '1' : '');
-  return { autoSend: !!on, autoHour: AUTO_HOUR };
+  setMemberAuto_(email, on);
+  return { autoSend: !!on, autoHour: AUTO_HOUR, autoFrom: AUTO_FROM, autoTo: AUTO_TO };
+}
+function setMemberAuto_(email, on) {
+  var sh = sheet_('members'), rows = rows_('members');
+  for (var i = 0; i < rows.length; i++) if (String(rows[i][0]).toLowerCase() === email) { sh.getRange(i + 2, 7).setValue(on ? '1' : ''); bust_('members'); return; }
 }
 
 // 未送信のものを BATCH 件ずつ送る。残りが 0 になったら status を sent にする
@@ -1946,7 +1962,7 @@ $('bCheck').onclick = function () {
   call('previewBulk', bulkFilter()).then(function (list) {
     B.targets = list; B.checked = list.length > 0;
     var total = list.reduce(function (a, x) { return a + x.count; }, 0);
-    $('bTargets').innerHTML = list.length ? '<table><thead><tr><th>担当者</th><th class="num">宛先</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + esc(x.name) + '<div class="sub">' + esc(x.email) + '</div></td><td class="num">' + x.count + ' 件</td></tr>'; }).join('') + '<tr><td><b>合計 ' + list.length + ' 人</b></td><td class="num"><b>' + total + ' 件</b></td></tr></tbody></table>' : '<div class="empty">対象の宛先がありません</div>';
+    $('bTargets').innerHTML = list.length ? '<table><thead><tr><th>担当者</th><th>自動送信</th><th class="num">宛先</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + esc(x.name) + '<div class="sub">' + esc(x.email) + '</div></td><td>' + (x.autoSend ? '<span class="tag sent">オン</span>' : '<span class="tag ready" title="本人が「送信する」を押すまで送られません">オフ（本人が送信）</span>') + '</td><td class="num">' + x.count + ' 件</td></tr>'; }).join('') + '<tr><td><b>合計 ' + list.length + ' 人</b></td><td></td><td class="num"><b>' + total + ' 件</b></td></tr></tbody></table>' + (list.some(function (x) { return !x.autoSend; }) ? '<p class="hint" style="margin:8px 0 0">「オフ」の人は自動送信をオンにしていないため、本人が送信するまで送られません（オンは本人が「署名・設定」で1回だけ）。</p>' : '') : '<div class="empty">対象の宛先がありません</div>';
     $('bPrepare').disabled = !B.checked; $('bHint').textContent = B.checked ? list.length + ' 人・' + total + ' 件分の配信を準備します' : '対象がありません';
   }).catch(fail);
 };
@@ -1967,7 +1983,7 @@ $('bPrepare').onclick = function () {
 // ---------- 自動送信 ----------
 $('autoSend').onchange = function () {
   var on = $('autoSend').checked;
-  call('setAutoSend', on).then(function (r) { S.autoSend = r.autoSend; toast(on ? '毎朝 ' + r.autoHour + ' 時に送信待ちを自動で送ります' : '自動送信をオフにしました'); }).catch(function (e) { fail(e); $('autoSend').checked = !on; });
+  call('setAutoSend', on).then(function (r) { S.autoSend = r.autoSend; toast(on ? '自動送信をオンにしました（1時間ごと・' + (r.autoFrom || 8) + '〜' + (r.autoTo || 19) + '時）' : '自動送信をオフにしました'); }).catch(function (e) { fail(e); $('autoSend').checked = !on; });
 };
 
 // ---------- 宛先リスト（共有シートが正本・ここでは見るだけ） ----------
