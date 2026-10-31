@@ -261,7 +261,7 @@
               <button class="btn sm" id="pickAll">表示中を全部</button><button class="btn sm" id="pickNone">全部外す</button></div>
               <div class="bar sub"><select id="pickGenre"><option value="">ジャンル: すべて</option></select><select id="pickTag"><option value="">タグ: すべて</option></select>
                 <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pickRecent" style="height:auto">直近<span id="pickRecentDays">30</span>日に送った人を外す</label><span class="count" id="pickRecentN"></span></div>
-              <div class="card-b"><div class="rec-pick" id="pick"></div><div class="hint" style="margin-top:8px">配信停止・不達の宛先は出ません。ジャンル・タグは「宛先リスト」で付けられます。</div></div></div>
+              <div class="card-b"><div class="rec-pick" id="pick"></div><div class="hint" style="margin-top:8px">配信停止・不達の宛先は出ません。ジャンル・タグ1・タグ2は共有シートで付けて、宛先リストで最新を読み込みます。</div></div></div>
           </div>
           <div>
             <div class="card" style="position:sticky;top:76px"><div class="card-h"><h2>届くメールのプレビュー</h2><span class="sp"></span><select id="pvRec" style="max-width:220px"><option value="">見本の宛先</option></select></div>
@@ -303,17 +303,17 @@
         </div>
       </section>
 
-      <!-- 宛先リスト -->
+      <!-- 宛先リスト（共有スプレッドシートが正本。ここでは見るだけ） -->
       <section id="recipients" class="hide">
         <div class="card">
-          <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="recQ" type="text" placeholder="会社名・氏名・メールで探す"></div>
+          <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="recQ" type="text" placeholder="会社名・氏名・メール・タグで探す"></div>
             <select id="recStatus"><option value="">状態: すべて</option><option value="ok">送れる</option><option value="unsub">配信停止</option><option value="bounce">不達</option></select>
             <select id="recGenre"><option value="">ジャンル: すべて</option></select><select id="recTag"><option value="">タグ: すべて</option></select>
-            <span class="count" id="recCount"></span><button class="btn danger hide" id="recDel">選択を削除</button><button class="btn" id="recSync" title="共有スプレッドシートの最新の内容を取り込みます">⟳ 最新リストを読込</button></div>
-          <div class="bar sub hide" id="syncBar"><span class="hint" id="syncInfo"></span><span class="sp"></span><button class="btn sm hide" id="recExport" title="サイトにあってシートに無い宛先をシートへ追加します（移行用）">サイトの宛先をシートへ書き出す</button><a class="hint" id="syncLink" href="#" target="_blank" rel="noopener">共有シートを開く ↗</a></div>
-          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="recAllCk" style="height:auto"></th><th>会社名</th><th>姓</th><th>名</th><th>メール</th><th>ジャンル</th><th>タグ</th><th>状態</th><th>担当</th><th>メモ</th><th>最終送信</th></tr></thead><tbody id="recBody"></tbody></table></div>
+            <span class="count" id="recCount"></span><button class="btn primary" id="recSync" title="共有スプレッドシートの最新の内容を取り込みます">⟳ 最新リストを読込</button></div>
+          <div class="bar sub" id="syncBar"><span class="hint" id="syncInfo"></span><span class="sp"></span><a class="hint" id="syncLink" href="#" target="_blank" rel="noopener">共有シートを開く ↗</a></div>
+          <div class="tbl"><table><thead><tr><th>会社名</th><th>姓</th><th>名</th><th>メール</th><th>ジャンル</th><th>タグ1</th><th>タグ2</th><th>状態</th><th>担当</th><th>メモ</th><th>最終送信</th></tr></thead><tbody id="recBody"></tbody></table></div>
           <div class="empty hide" id="recEmpty">宛先がありません。共有スプレッドシートに追加して「⟳ 最新リストを読込」を押してください</div>
-          <div class="hint" style="padding:10px 18px;border-top:1px solid var(--line)">会社名・姓・名・メール・タグ・メモはクリックしてその場で直せます（Enter で保存・Esc でやめる）。宛名の形「苗字」は「姓」の欄を使います。タグは「,」で区切って複数付けられます。担当者は引き継ぎのとき誰でも変えられます。文字の変更と削除は担当者と管理者だけです。</div>
+          <div class="hint" style="padding:10px 18px;border-top:1px solid var(--line)">宛先の追加・変更・削除は<b>共有スプレッドシート</b>で行い、「⟳ 最新リストを読込」で反映します（ここでは変更できません）。サイトからシートへ書き戻すのは、DMを送ったときの「最終送信日時」と、配信停止があったときの「状態」だけです。</div>
         </div>
       </section>
 
@@ -397,6 +397,7 @@
   };
   Range.prototype.setValue = function (v) { return this.setValues([[v]]); };
   Range.prototype.setFormulas = function (vals) { return this.setValues(vals); };
+  Range.prototype.setDataValidation = function (rule) { this.sh.validation = this.sh.validation || {}; this.sh.validation[this.c] = rule; return this; };
   Range.prototype.clearContent = function () { var e = []; for (var i = 0; i < this.nr; i++) { var row = []; for (var j = 0; j < this.nc; j++) row.push(''); e.push(row); } return this.setValues(e); };
   Range.prototype.getValue = function () { return this.getValues()[0][0]; };
   Range.prototype.setNumberFormat = function (f) { if (f === '@') for (var j = 0; j < this.nc; j++) this.sh.textCols[this.c + j] = true; return this; };
@@ -438,7 +439,8 @@
       now: null, // テストで日時を固定するとき Date を入れる
       SpreadsheetApp: {
         create: function (n) { var id = 'sheet' + (Object.keys(store).length + 1); store[id] = new Spreadsheet(id, n); return store[id]; },
-        openById: function (id) { if (!store[id]) throw new Error('no sheet ' + id); return store[id]; }
+        openById: function (id) { if (!store[id]) throw new Error('no sheet ' + id); return store[id]; },
+        newDataValidation: function () { var b = { list: null, requireValueInList: function (l) { b.list = l; return b; }, setAllowInvalid: function () { return b; }, setHelpText: function () { return b; }, build: function () { return { list: b.list }; } }; return b; }
       },
       PropertiesService: {
         getScriptProperties: function () { return {
@@ -548,7 +550,7 @@ var WORKER_URL = 'https://kcreate-dm.k-create.workers.dev';
 var TRACK_URL = WORKER_URL + '/'; // メールに入れる記録用URLの頭（settings の track_url で上書き可）
 var CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 var BATCH = 30; // 1回の sendBatch で送る件数（画面が繰り返し呼ぶ）
-var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei', 'in_master']; // in_master=1: 共有シートに載っている（シートから消えたらサイトでも外す対象） // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
+var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei', 'in_master', 'tags2']; // tags=タグ1, tags2=タグ2（16列目） // in_master=1: 共有シートに載っている（シートから消えたらサイトでも外す対象） // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
 var DEFAULT_GENRES = ['グルメ', 'スクール', 'ショップ', '暮らし', 'トータルケア', 'クリニック', '介護・福祉', '終活・士業', '企業', 'その他'];
 var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
 var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style'];
@@ -748,7 +750,7 @@ function recObj_(r) {
   var sei = String(r[12] || '').trim(), mei = String(r[13] || '').trim(), name = String(r[2] || '').trim();
   if (!sei && !mei && name) { var sp = splitName_(name); sei = sp.sei; mei = sp.mei; }
   return { id: String(r[0]), company: String(r[1]), name: joinName_(sei, mei), sei: sei, mei: mei, email: String(r[3]).toLowerCase(), ownerEmail: String(r[4]).toLowerCase(),
-           status: String(r[5]) || 'ok', note: String(r[6]), created: str_(r[7]), updated: str_(r[8]), genre: String(r[10] || ''), tags: String(r[11] || ''), inMaster: String(r[14] || '') === '1' };
+           status: String(r[5]) || 'ok', note: String(r[6]), created: str_(r[7]), updated: str_(r[8]), genre: String(r[10] || ''), tags: String(r[11] || ''), tags2: String(r[15] || ''), inMaster: String(r[14] || '') === '1' };
 }
 // 共有シートに載った宛先に印を付ける（削除の同期対象）
 function markInMaster_(ids) {
@@ -823,7 +825,7 @@ function addRecipients(list) {
     if (!isEmail_(e)) { bad.push(x.email || '(空)'); return; }
     if (have[e]) { skipped++; return; }
     have[e] = true;
-    out.push([newCode_(8), c, joinName_(sp.sei, sp.mei), e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags), sp.sei, sp.mei, '']);
+    out.push([newCode_(8), c, joinName_(sp.sei, sp.mei), e, email, 'ok', '', t, t, '', genreNorm_(x.genre), tagsNorm_(x.tags), sp.sei, sp.mei, '', tagsNorm_(x.tags2)]);
   });
   if (out.length) { sheet_('recipients').getRange(sheet_('recipients').getLastRow() + 1, 1, out.length, REC_HEAD.length).setValues(out); bust_('recipients'); masterWrite_(out.map(recObj_)); }
   return { added: out.length, skipped: skipped, bad: bad };
@@ -987,17 +989,17 @@ function importMaster() {
     if (ownerName && !owner) out.warnings.push(line + '行目: 担当者「' + ownerName + '」がサイトの登録名にありません（担当なしで取り込み）');
     if (!ownerName) out.warnings.push(line + '行目: 担当者が空です（担当なしで取り込み）');
     var st = STATUS_EN[cell(row, '状態')]; if (st === undefined) { out.warnings.push(line + '行目: 状態「' + cell(row, '状態') + '」は 送れる／配信停止／不達 のどれかにしてください（送れる として取り込み）'); st = 'ok'; }
-    var genre = genreNorm_(cell(row, 'ジャンル')), tags = tagsNorm_(cell(row, 'タグ')), note = cell(row, 'メモ');
+    var genre = genreNorm_(cell(row, 'ジャンル')), tags = tagsNorm_(cell(row, 'タグ1') || cell(row, 'タグ')), tags2 = tagsNorm_(cell(row, 'タグ2')), note = cell(row, 'メモ');
     seen[id] = true; out.total++;
     var hit = byId[id];
     if (hit) {
       var cur = recObj_(hit.r);
       if (cur.status === 'unsub' && st !== 'unsub') { st = 'unsub'; sheetSt.push([line, '配信停止']); } // サイト側の配信停止が優先（本人が止めたもの）
-      var next = [id, company, joinName_(sei, mei), em, owner, st, note, str_(hit.r[7]), t, '', genre, tags, sei, mei, '1'];
-      var changed = [1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14].some(function (k) { return String(hit.r[k] == null ? '' : hit.r[k]) !== String(next[k]); }) || !!hit.r[9];
+      var next = [id, company, joinName_(sei, mei), em, owner, st, note, str_(hit.r[7]), t, '', genre, tags, sei, mei, '1', tags2];
+      var changed = [1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15].some(function (k) { return String(hit.r[k] == null ? '' : hit.r[k]) !== String(next[k]); }) || !!hit.r[9];
       if (changed) { shRec.getRange(hit.row, 1, 1, REC_HEAD.length).setValues([next]); out.updated++; }
     } else {
-      appendRows.push([id, company, joinName_(sei, mei), em, owner, st, note, t, t, '', genre, tags, sei, mei, '1']); out.added++;
+      appendRows.push([id, company, joinName_(sei, mei), em, owner, st, note, t, t, '', genre, tags, sei, mei, '1', tags2]); out.added++;
     }
   });
   if (appendRows.length) shRec.getRange(shRec.getLastRow() + 1, 1, appendRows.length, REC_HEAD.length).setValues(appendRows);
@@ -1014,6 +1016,13 @@ function importMaster() {
     var curLs = sh.getRange(2, lsCol, vals.length, 1).getValues();
     if (ls.some(function (x, k) { return x[0] && String(curLs[k][0] || '') !== x[0]; })) sh.getRange(2, lsCol, vals.length, 1).setValues(ls.map(function (x, k) { return [x[0] || String(curLs[k][0] || '')]; }));
   }
+  // 担当者のプルダウン候補を、このサイトの登録名に合わせる（ひな形は QR管理の名前で作られていたため）
+  try {
+    if (cols['担当者']) {
+      var nm = membersList_().map(function (m) { return m.name; }).filter(String);
+      if (nm.length) sh.getRange(2, cols['担当者'], Math.max(sh.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(nm, true).setAllowInvalid(true).setHelpText('担当者の名前（一斉DMサイトの登録名）').build());
+    }
+  } catch (e) { console.error('担当者の入力規則 ' + e); }
   var stamp = now_(); setSetting_('master_synced', stamp); out.synced = stamp;
   return out;
 }
@@ -1030,7 +1039,7 @@ function masterWrite_(list) {
     membersList_().forEach(function (m) { names[m.email] = m.name; });
     var width = Math.max.apply(null, Object.keys(cols).map(function (k) { return cols[k]; })), appendRows = [];
     list.forEach(function (o) {
-      var vals = { 'ID': o.id, '会社名': o.company, '姓': o.sei, '名': o.mei, 'メール': o.email, '担当者': names[o.ownerEmail] || '', 'ジャンル': o.genre, 'タグ': o.tags, 'メモ': o.note, '状態': STATUS_JA[o.status] || '送れる' };
+      var vals = { 'ID': o.id, '会社名': o.company, '姓': o.sei, '名': o.mei, 'メール': o.email, '担当者': names[o.ownerEmail] || '', 'ジャンル': o.genre, 'タグ1': o.tags, 'タグ2': o.tags2 || '', 'タグ': o.tags, 'メモ': o.note, '状態': STATUS_JA[o.status] || '送れる' };
       var row = map[o.id];
       if (row) { Object.keys(vals).forEach(function (k) { if (cols[k]) sh.getRange(row, cols[k]).setValue(vals[k]); }); return; } // 既存行は変わるセルだけ
       var arr = []; for (var i = 0; i < width; i++) arr.push('');
@@ -1275,7 +1284,7 @@ function bulkTargets_(f) {
     if (r[9]) return;
     var o = recObj_(r);
     if (o.status !== 'ok' || !names[o.ownerEmail]) return;
-    if (f.tag && (', ' + o.tags + ', ').indexOf(', ' + f.tag + ', ') < 0) return;
+    if (f.tag && (', ' + o.tags + ', ' + o.tags2 + ', ').indexOf(', ' + f.tag + ', ') < 0) return; // タグ1・タグ2 のどちらかに含まれていればよい
     if (f.genre && o.genre !== f.genre) return;
     if (f.excludeRecent && last[o.id] && last[o.id].slice(0, 10) >= cut) return;
     if (f.owners && f.owners.length && f.owners.indexOf(o.ownerEmail) < 0) return;
@@ -1453,7 +1462,8 @@ var WORKER_TOKEN = 'test-token';
       var genre = rand() < .1 ? '' : ((GEN.filter(function (x) { return x[0].test(c); })[0] || [0, 'その他'])[1]);
       var TAGS = ['既存客', '見込み', '12月号掲載', '展示会で名刺交換', '休眠'];
       var tags = rand() < .55 ? TAGS[Math.floor(rand() * TAGS.length)] + (rand() < .3 ? ', ' + TAGS[Math.floor(rand() * TAGS.length)] : '') : '';
-      list.push({ company: company, name: name, email: local, genre: genre, tags: tags });
+      var tags2 = rand() < .5 ? (rand() < .5 ? '11月号DM' : '10月号DM') : '';
+      list.push({ company: company, name: name, email: local, genre: genre, tags: tags, tags2: tags2 });
     }
     addRecipients(list);
     recByOwner[m[0]] = listRecipients().filter(function (r) { return r.ownerEmail === m[0]; });
@@ -1505,6 +1515,8 @@ var WORKER_TOKEN = 'test-token';
   });
   __env.user = 'hirayama@k-create.co.jp';
   saveCampaign(null, { subject: '【くれよん1月号】新年号の広告枠のご案内（下書き）', body: '{会社名}\n{氏名}様\n\nいつもお世話になっております。くれよんの{担当者名}です。\n\n1月号の広告枠のご案内です。\n\nhttps://example.jp/kureyon/2701\n\nよろしくお願いいたします。' });
+  // まとめて準備の見本用に、各担当者の最初の宛先にタグ「12月号掲載」を付けておく（全員に送信待ちができるように）
+  members.forEach(function (m) { var r0 = listRecipients().filter(function (x) { return x.ownerEmail === m[0] && x.status === 'ok'; })[0]; if (r0 && (', ' + r0.tags + ', ').indexOf(', 12月号掲載, ') < 0) updateRecipient(r0.id, { tags: (r0.tags ? r0.tags + ', ' : '') + '12月号掲載' }); });
   // まとめて準備の見本: 平山がタグ「12月号掲載」の宛先に全員分を「送信待ち」で準備
   prepareBulk({ subject: '【12月号DM】くれよん12月号 掲載のご案内', body: '{会社名}\n{氏名}様\n\nいつもお世話になっております。くれよんの{担当者名}です。\n\n12月号（11月19日発行）の掲載のご案内です。\n\nhttps://example.jp/kureyon/1212\n\nよろしくお願いいたします。', tag: '12月号掲載', excludeRecent: false });
   // 共有シート（宛先リストの正本）の見本: 既存の宛先3件（ID付き）＋新しい3件（ID空）＋担当者名が合わない1件
@@ -1793,10 +1805,11 @@ $('cAddr').onchange = renderPreview;
 $('pvRec').onchange = renderPreview;
 document.querySelectorAll('.chip').forEach(function (b) { b.onmousedown = function (e) { e.preventDefault(); }; b.onclick = function () { edInsert(b.dataset.ed || 'cBody', b.dataset.ins); }; });
 function compVals() { return { subject: $('cSubject').value, body: edHtml('cBody'), addrStyle: $('cAddr').value }; }
-function allTags(list) { var seen = {}, out = []; list.forEach(function (r) { (r.tags || '').split(', ').forEach(function (t) { if (t && !seen[t]) { seen[t] = true; out.push(t); } }); }); return out.sort(); }
+function tagsOf(r) { return ((r.tags || '') + ', ' + (r.tags2 || '')).split(', ').filter(String); } // タグ1・タグ2 をまとめて
+function allTags(list) { var seen = {}, out = []; list.forEach(function (r) { tagsOf(r).forEach(function (t) { if (!seen[t]) { seen[t] = true; out.push(t); } }); }); return out.sort(); }
 function fillTagSel(sel, list) { var v = sel.value; sel.innerHTML = '<option value="">タグ: すべて</option>' + allTags(list).map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') + '<option value="-">（タグなし）</option>'; sel.value = v; if (sel.value !== v) sel.value = ''; }
 function matchGenre(r, g) { return !g || (g === '-' ? !r.genre : r.genre === g); }
-function matchTag(r, t) { return !t || (t === '-' ? !r.tags : (', ' + r.tags + ', ').indexOf(', ' + t + ', ') >= 0); }
+function matchTag(r, t) { return !t || (t === '-' ? !tagsOf(r).length : tagsOf(r).indexOf(t) >= 0); }
 function recentCut() { var d = new Date(Date.now() - S.recentDays * 86400000); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function isRecent(r) { return !!r.lastSent && String(r.lastSent).slice(0, 10) >= recentCut(); }
 function pickable() { return S.recs.filter(function (r) { return r.ownerEmail === S.me.email && r.status === 'ok'; }); }
@@ -1804,14 +1817,14 @@ function renderPick() {
   var q = $('pickQ').value.trim().toLowerCase(), g = $('pickGenre').value, tg = $('pickTag').value, noRecent = $('pickRecent').checked;
   fillTagSel($('pickTag'), pickable()); tg = $('pickTag').value;
   var recentN = pickable().filter(isRecent).length; $('pickRecentN').textContent = recentN ? '（' + recentN + ' 件）' : '';
-  var list = pickable().filter(function (r) { return (!q || (r.company + r.name + r.email).toLowerCase().indexOf(q) >= 0) && matchGenre(r, g) && matchTag(r, tg) && !(noRecent && isRecent(r)); });
-  $('pick').innerHTML = list.length ? '<table><thead><tr><th style="width:32px"></th><th>会社名</th><th>氏名</th><th>ジャンル</th><th>タグ</th><th>最終送信</th><th>メール</th></tr></thead><tbody>' + list.map(function (r) {
+  var list = pickable().filter(function (r) { return (!q || (r.company + r.name + r.email + ' ' + tagsOf(r).join(' ')).toLowerCase().indexOf(q) >= 0) && matchGenre(r, g) && matchTag(r, tg) && !(noRecent && isRecent(r)); });
+  $('pick').innerHTML = list.length ? '<table><thead><tr><th style="width:32px"></th><th>会社名</th><th>氏名</th><th>ジャンル</th><th>タグ1</th><th>タグ2</th><th>最終送信</th><th>メール</th></tr></thead><tbody>' + list.map(function (r) {
     return '<tr class="row" data-id="' + esc(r.id) + '"><td><input type="checkbox" data-id="' + esc(r.id) + '"' + (S.compose.sel[r.id] ? ' checked' : '') + ' style="height:auto"></td>' +
       '<td class="nm">' + esc(r.company) + '</td><td>' + (r.name ? esc(r.name) : '<span style="color:var(--faint)">（ご担当者様）</span>') + '</td>' +
-      '<td>' + (r.genre ? '<span class="tag" style="font-size:11px">' + esc(r.genre) + '</span>' : '') + '</td><td class="tg">' + esc(r.tags) + '</td>' +
+      '<td>' + (r.genre ? '<span class="tag" style="font-size:11px">' + esc(r.genre) + '</span>' : '') + '</td><td class="tg">' + esc(r.tags) + '</td><td class="tg">' + esc(r.tags2 || '') + '</td>' +
       '<td>' + (r.lastSent ? (isRecent(r) ? '<span class="tag bounce" style="font-size:11px" title="直近に送っています">' + esc(String(r.lastSent).slice(5, 10).replace('-', '/')) + '</span>' : '<span class="mono" style="font-size:12px;color:var(--muted)">' + esc(String(r.lastSent).slice(5, 10).replace('-', '/')) + '</span>') : '') + '</td>' +
       '<td class="e">' + esc(r.email) + '</td></tr>';
-  }).join('') + '</tbody></table>' : '<div class="empty">送れる宛先がありません。「宛先リスト」で追加してください</div>';
+  }).join('') + '</tbody></table>' : '<div class="empty">送れる宛先がありません。共有シートに追加して「宛先リスト」で最新を読み込んでください</div>';
   document.querySelectorAll('#pick tr.row').forEach(function (tr) { tr.onclick = function (e) { if (e.target.closest('input')) return; var ck = tr.querySelector('input'); ck.checked = !ck.checked; ck.dispatchEvent(new Event('change')); }; });
   document.querySelectorAll('#pick input').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.compose.sel[ck.dataset.id] = true; else delete S.compose.sel[ck.dataset.id]; updatePickCount(); }; });
   $('pvRec').innerHTML = '<option value="">見本の宛先</option>' + pickable().map(function (r) { return '<option value="' + esc(r.id) + '">' + esc(r.company + ' ' + (r.name || '（ご担当者様）')) + '</option>'; }).join('');
@@ -1943,18 +1956,9 @@ $('autoSend').onchange = function () {
   call('setAutoSend', on).then(function (r) { S.autoSend = r.autoSend; toast(on ? '毎朝 ' + r.autoHour + ' 時に送信待ちを自動で送ります' : '自動送信をオフにしました'); }).catch(function (e) { fail(e); $('autoSend').checked = !on; });
 };
 
-// ---------- 宛先リスト ----------
+// ---------- 宛先リスト（共有シートが正本・ここでは見るだけ） ----------
 var STN = { ok: '送れる', unsub: '配信停止', bounce: '不達' };
 function loadRecs() { return call('listRecipients').then(function (list) { S.recs = list; if (S.tab === 'recipients') { renderFolders(); renderRecs(); } }).catch(fail); }
-function canEditRec(r) { return r.ownerEmail === S.me.email || S.me.isAdmin; }
-// サーバーから返った1件を手元の一覧に反映して描き直す（一覧全体を読み直さないので速い）
-function applyRec(upd) {
-  var i = -1; S.recs.forEach(function (x, k) { if (x.id === upd.id) i = k; });
-  if (i < 0) { loadRecs(); return; }
-  var cur = S.recs[i], names = {}; S.members.forEach(function (m) { names[m.email] = m.name; });
-  S.recs[i] = Object.assign({}, cur, upd, { ownerName: names[upd.ownerEmail] || cur.ownerName || '', lastSent: cur.lastSent });
-  renderFolders(); renderRecs();
-}
 // 左の「自分／全員／各スタッフ」。最初は自分
 function renderFolders() {
   var cnt = {}, mine = 0;
@@ -1963,7 +1967,7 @@ function renderFolders() {
   $('folders').innerHTML = '<button data-f="mine"' + (S.recFolder === 'mine' ? ' class="on"' : '') + '><span>自分</span><span class="n">' + mine + '</span></button>' +
     '<button data-f="all"' + (S.recFolder === 'all' ? ' class="on"' : '') + '><span>全員</span><span class="n">' + S.recs.length + '</span></button><hr>' +
     others.map(function (m) { return '<button data-f="' + esc(m.email) + '"' + (S.recFolder === m.email ? ' class="on"' : '') + '><span>' + esc(m.name) + '</span><span class="n">' + (cnt[m.email] || 0) + '</span></button>'; }).join('');
-  document.querySelectorAll('#folders button').forEach(function (b) { b.onclick = function () { S.recFolder = b.dataset.f; S.recSel = {}; renderFolders(); renderRecs(); }; });
+  document.querySelectorAll('#folders button').forEach(function (b) { b.onclick = function () { S.recFolder = b.dataset.f; renderFolders(); renderRecs(); }; });
 }
 function renderRecs() {
   var q = $('recQ').value.trim().toLowerCase(), st = $('recStatus').value, f = S.recFolder, g = $('recGenre').value;
@@ -1971,71 +1975,25 @@ function renderRecs() {
   fillTagSel($('recTag'), S.recs.filter(inFolder)); var tg = $('recTag').value;
   var rows = S.recs.filter(function (r) {
     if (!inFolder(r)) return false;
-    return (!q || (r.company + r.name + r.email + r.tags).toLowerCase().indexOf(q) >= 0) && (!st || r.status === st) && matchGenre(r, g) && matchTag(r, tg);
+    return (!q || (r.company + r.name + r.email + ' ' + tagsOf(r).join(' ')).toLowerCase().indexOf(q) >= 0) && (!st || r.status === st) && matchGenre(r, g) && matchTag(r, tg);
   });
   $('recCount').textContent = rows.length + ' 件'; $('recEmpty').classList.toggle('hide', rows.length > 0);
-  var opts = S.members.map(function (m) { return '<option value="' + esc(m.email) + '">' + esc(m.name) + '</option>'; }).join('');
   $('recBody').innerHTML = rows.map(function (r) {
-    var ed = canEditRec(r);
-    function cell(f, v, cls) { return '<td class="' + (ed ? 'ed ' : '') + (cls || '') + '" data-id="' + esc(r.id) + '" data-f="' + f + '" title="' + (ed ? 'クリックで変更' : '') + '">' + (v ? esc(v) : (f === 'sei' ? '<span style="color:var(--faint)">（ご担当者様）</span>' : '')) + '</td>'; }
-    return '<tr data-id="' + esc(r.id) + '"><td><input type="checkbox" class="rck" data-id="' + esc(r.id) + '"' + (S.recSel[r.id] ? ' checked' : '') + (ed ? '' : ' disabled') + ' style="height:auto"></td>' +
-      cell('company', r.company, 'nm') + cell('sei', r.sei) + cell('mei', r.mei) + cell('email', r.email, 'mono') +
-      '<td>' + (ed ? '<select class="sel rgen" data-id="' + esc(r.id) + '"><option value="">（なし）</option>' + S.genres.map(function (x) { return '<option' + (r.genre === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' : (r.genre ? '<span class="tag">' + esc(r.genre) + '</span>' : '')) + '</td>' +
-      cell('tags', r.tags) +
-      '<td>' + (ed ? '<select class="sel rst" data-id="' + esc(r.id) + '"><option value="ok"' + (r.status === 'ok' ? ' selected' : '') + '>送れる</option><option value="unsub"' + (r.status === 'unsub' ? ' selected' : '') + '>配信停止</option><option value="bounce"' + (r.status === 'bounce' ? ' selected' : '') + '>不達</option></select>' : '<span class="tag ' + r.status + '">' + STN[r.status] + '</span>') + '</td>' +
-      '<td><select class="sel rown" data-id="' + esc(r.id) + '">' + (r.ownerName ? '' : '<option value="">（未登録）</option>') + opts + '</select></td>' +
-      cell('note', r.note) + '<td class="mono" style="font-size:12px;color:var(--muted)">' + esc(r.lastSent ? String(r.lastSent).slice(0, 10) : '−') + '</td></tr>';
+    return '<tr data-id="' + esc(r.id) + '"><td class="nm">' + esc(r.company) + '</td><td>' + (r.sei ? esc(r.sei) : '<span style="color:var(--faint)">（ご担当者様）</span>') + '</td><td>' + esc(r.mei) + '</td><td class="mono" style="font-size:12px">' + esc(r.email) + '</td>' +
+      '<td>' + (r.genre ? '<span class="tag">' + esc(r.genre) + '</span>' : '') + '</td><td class="tg">' + esc(r.tags) + '</td><td class="tg">' + esc(r.tags2 || '') + '</td>' +
+      '<td><span class="tag ' + r.status + '">' + STN[r.status] + '</span></td><td>' + (r.ownerName ? esc(r.ownerName) : '<span style="color:var(--faint)">（未登録）</span>') + '</td>' +
+      '<td class="sub" style="margin:0">' + esc(r.note) + '</td><td class="mono" style="font-size:12px;color:var(--muted)">' + esc(r.lastSent ? String(r.lastSent).slice(0, 10) : '−') + '</td></tr>';
   }).join('');
-  document.querySelectorAll('#recBody .rown').forEach(function (sel) { var r = S.recs.filter(function (x) { return x.id === sel.dataset.id; })[0]; sel.value = r.ownerName ? r.ownerEmail : ''; });
-  document.querySelectorAll('#recBody td.ed').forEach(function (td) { td.onclick = function () { startEdit(td); }; });
-  document.querySelectorAll('#recBody .rck').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.recSel[ck.dataset.id] = true; else delete S.recSel[ck.dataset.id]; updateRecSel(); }; });
-  document.querySelectorAll('#recBody .rgen').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { genre: sel.value }).then(function (r) { toast('ジャンルを変えました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); }); }; });
-  document.querySelectorAll('#recBody .rst').forEach(function (sel) { sel.onchange = function () { call('updateRecipient', sel.dataset.id, { status: sel.value }).then(function (r) { toast('「' + STN[r.status] + '」にしました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); }); }; });
-  document.querySelectorAll('#recBody .rown').forEach(function (sel) { sel.onchange = function () {
-    var r = S.recs.filter(function (x) { return x.id === sel.dataset.id; })[0], to = S.members.filter(function (m) { return m.email === sel.value; })[0];
-    if (!to || !confirm('「' + r.company + '」の担当者を ' + to.name + ' さんに変えますか？')) { loadRecs(); return; }
-    call('changeOwner', sel.dataset.id, sel.value).then(function (r) { toast('担当者を ' + to.name + ' さんに変えました'); applyRec(r); }).catch(function (e) { fail(e); loadRecs(); });
-  }; });
-  updateRecSel();
 }
-// セルをクリック → その場で入力（Enter で保存・Esc でやめる・別のところをクリックでも保存）
-function startEdit(td) {
-  if (td.querySelector('input')) return;
-  var id = td.dataset.id, f = td.dataset.f, r = S.recs.filter(function (x) { return x.id === id; })[0];
-  var old = r[f] || '', inp = document.createElement('input');
-  inp.type = f === 'email' ? 'email' : 'text'; inp.value = old; inp.placeholder = f === 'sei' ? '空なら「ご担当者様」' : f === 'mei' ? '名（任意）' : f === 'tags' ? '例: 既存客, 12月号' : '';
-  td.textContent = ''; td.appendChild(inp); inp.focus(); inp.select();
-  var done = false;
-  function finish(save) {
-    if (done) return; done = true;
-    var v = inp.value.trim();
-    if (!save || v === old) { renderRecs(); return; }
-    var o = {}; o[f] = v;
-    // 先に画面の文字を入れ替えて（待たせない）、サーバーの結果で確定
-    var optimistic = Object.assign({}, r); optimistic[f] = v; if (f === 'sei' || f === 'mei') optimistic.name = [optimistic.sei, optimistic.mei].filter(String).join(' ');
-    applyRec(optimistic);
-    call('updateRecipient', id, o).then(function (res) { toast('保存しました'); applyRec(res); }).catch(function (e) { fail(e); loadRecs(); });
-  }
-  inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); finish(true); } if (e.key === 'Escape') finish(false); };
-  inp.onblur = function () { finish(true); };
-  inp.onclick = function (e) { e.stopPropagation(); };
-}
-function updateRecSel() { var n = Object.keys(S.recSel).length; $('recDel').classList.toggle('hide', !n); $('recDel').textContent = '選択を削除（' + n + '）'; }
 $('recQ').oninput = renderRecs; $('recStatus').onchange = $('recGenre').onchange = $('recTag').onchange = renderRecs;
 function renderSyncBar() {
   var id = S.settings.master_sheet_id;
   $('recSync').classList.toggle('hide', !id);
-  $('syncBar').classList.toggle('hide', !id);
-  if (!id) return;
-  $('syncInfo').textContent = '宛先の正本は共有スプレッドシートです。' + (S.settings.master_synced ? '最終読込: ' + S.settings.master_synced : 'まだ読み込んでいません') + '。サイトで直した内容はシートにも書き戻されます';
+  if (!id) { $('syncInfo').textContent = '共有スプレッドシートがまだ設定されていません（署名・設定 → 会社の情報）'; $('syncLink').classList.add('hide'); return; }
+  $('syncLink').classList.remove('hide');
+  $('syncInfo').textContent = '宛先の正本は共有スプレッドシートです。' + (S.settings.master_synced ? '最終読込: ' + S.settings.master_synced : 'まだ読み込んでいません');
   $('syncLink').href = 'https://docs.google.com/spreadsheets/d/' + id + '/edit';
-  $('recExport').classList.toggle('hide', !S.me.isAdmin);
 }
-$('recExport').onclick = function () {
-  if (!confirm('サイトにあってシートに無い宛先を、共有シートの末尾に追加します。よろしいですか？')) return;
-  var b = $('recExport'); b.disabled = true;
-  call('exportToMaster').then(function (r) { toast(r.exported ? r.exported + ' 件をシートに書き出しました' : 'シートに無い宛先はありませんでした'); return loadRecs(); }).catch(fail).then(function () { b.disabled = false; });
-};
 $('recSync').onclick = function () {
   var b = $('recSync'); b.disabled = true; b.textContent = '読み込んでいます…';
   call('importMaster').then(function (r) {
@@ -2049,11 +2007,7 @@ $('recSync').onclick = function () {
     return loadRecs();
   }).catch(fail).then(function () { b.disabled = false; b.textContent = '⟳ 最新リストを読込'; });
 };
-$('recAllCk').onchange = function () { document.querySelectorAll('#recBody .rck:not(:disabled)').forEach(function (ck) { if ($('recAllCk').checked) S.recSel[ck.dataset.id] = true; else delete S.recSel[ck.dataset.id]; }); renderRecs(); };
-$('recDel').onclick = function () {
-  var ids = Object.keys(S.recSel); if (!ids.length || !confirm(ids.length + ' 件の宛先を削除しますか？')) return;
-  call('deleteRecipients', ids).then(function (r) { toast(r.deleted + ' 件削除しました'); S.recSel = {}; return loadRecs(); }).catch(fail);
-};
+
 // ---------- 署名・設定 ----------
 function renderSettings() {
   var m = S.me, st = S.settings;
