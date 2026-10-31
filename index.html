@@ -397,6 +397,7 @@
   };
   Range.prototype.setValue = function (v) { return this.setValues([[v]]); };
   Range.prototype.setFormulas = function (vals) { return this.setValues(vals); };
+  Range.prototype.clearContent = function () { var e = []; for (var i = 0; i < this.nr; i++) { var row = []; for (var j = 0; j < this.nc; j++) row.push(''); e.push(row); } return this.setValues(e); };
   Range.prototype.getValue = function () { return this.getValues()[0][0]; };
   Range.prototype.setNumberFormat = function (f) { if (f === '@') for (var j = 0; j < this.nc; j++) this.sh.textCols[this.c + j] = true; return this; };
   Range.prototype.createTextFinder = function (text) {
@@ -760,9 +761,12 @@ function exportToMaster() {
   var email = myEmail_();
   if (!isAdmin_(email)) throw new Error('シートへの書き出しは管理者だけができます');
   var sh = masterSheet_(); if (!sh) throw new Error('共有シートが設定されていません（署名・設定 → 会社の情報）');
-  var cols = masterCols_(sh), map = masterIdRows_(sh, cols);
+  var cols = masterCols_(sh);
+  var fixed = compactMaster_(sh, cols); // 下のほうに書かれていた行があれば上に詰める
+  var map = masterIdRows_(sh, cols);
   var list = rows_('recipients').filter(function (r) { return !r[9]; }).map(recObj_).filter(function (o) { return !map[o.id]; });
   if (list.length) masterWrite_(list);
+  if (!list.length && fixed) return { exported: 0, fixed: fixed };
   return { exported: list.length };
 }
 function genres_() { return rows_('genres').map(function (r) { return String(r[0]); }).filter(String); }
@@ -919,8 +923,40 @@ function masterCols_(sh) {
   if (!cols['ID'] || !cols['メール']) throw new Error('共有シートの1行目に「ID」「メール」の見出しが見つかりません（見出しは変えないでください）');
   return cols;
 }
+// データの最後の行（ひな形は「重複」列に数式が3000行分入っていて getLastRow() が 3001 になるので、メール・ID・会社名の実データで見る）
+function lastDataRow_(sh, cols) {
+  var n = sh.getLastRow(); if (n < 2) return 1;
+  var keys = ['メール', 'ID', '会社名'].filter(function (k) { return cols[k]; });
+  var last = 1;
+  keys.forEach(function (k) {
+    var v = sh.getRange(2, cols[k], n - 1, 1).getValues();
+    for (var i = v.length - 1; i >= 0; i--) if (String(v[i][0] == null ? '' : v[i][0]).trim()) { last = Math.max(last, i + 2); break; }
+  });
+  return last;
+}
+// 下のほう（空行をはさんだ先）に書かれてしまった行を、上の空いている行へ詰める（以前の版が 3002行目以降に書いた分の修復）
+function compactMaster_(sh, cols) {
+  var n = sh.getLastRow(); if (n < 3) return 0;
+  var width = Math.max.apply(null, Object.keys(cols).map(function (k) { return cols[k]; }));
+  var keyCol = cols['メール'] || cols['ID'];
+  var keys = sh.getRange(2, keyCol, n - 1, 1).getValues().map(function (r) { return String(r[0] == null ? '' : r[0]).trim(); });
+  var firstEmpty = keys.indexOf(''); if (firstEmpty < 0) return 0;
+  var stray = []; for (var i = firstEmpty + 1; i < keys.length; i++) if (keys[i]) stray.push(i + 2);
+  if (!stray.length) return 0;
+  var formulaCol = cols['重複（他の担当者）'] || 0, moved = [];
+  stray.forEach(function (row) { var v = sh.getRange(row, 1, 1, width).getValues()[0]; if (formulaCol) v[formulaCol - 1] = ''; moved.push(v); });
+  var start = firstEmpty + 2;
+  sh.getRange(start, 1, moved.length, width).setValues(moved);
+  if (formulaCol) {
+    var f = []; for (var r = start; r < start + moved.length; r++) f.push(['=IF(E' + r + '="","",IF(COUNTIF($E$2:$E,E' + r + ')>1,IFERROR(TEXTJOIN("、",TRUE,UNIQUE(FILTER($F$2:$F,$E$2:$E=E' + r + ',ROW($E$2:$E)<>' + r + '))),"（担当者未記入）"),""))']);
+    try { sh.getRange(start, formulaCol, f.length, 1).setFormulas(f); } catch (e) {}
+  }
+  // 元の場所は消す（下から）
+  stray.slice().reverse().forEach(function (row) { sh.getRange(row, 1, 1, width).clearContent(); });
+  return moved.length;
+}
 function masterIdRows_(sh, cols) { // ID → 行番号
-  var n = sh.getLastRow(), map = {};
+  var n = lastDataRow_(sh, cols), map = {};
   if (n < 2) return map;
   sh.getRange(2, cols['ID'], n - 1, 1).getValues().forEach(function (r, i) { var id = String(r[0] || '').trim(); if (id) map[id] = i + 2; });
   return map;
@@ -930,7 +966,9 @@ function importMaster() {
   var email = myEmail_();
   checkMember_(email);
   var sh = masterSheet_(); if (!sh) throw new Error('共有シートが設定されていません（署名・設定 → 会社の情報）');
-  var cols = masterCols_(sh), n = sh.getLastRow();
+  var cols = masterCols_(sh);
+  compactMaster_(sh, cols);
+  var n = lastDataRow_(sh, cols);
   var vals = n < 2 ? [] : sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
   var names = {}; membersList_().forEach(function (m) { names[m.name] = m.email; names[m.name.replace(/[\s\u3000]/g, '')] = m.email; });
   var recs = rows_('recipients'), byId = {}, used = {};
@@ -1000,7 +1038,7 @@ function masterWrite_(list) {
       appendRows.push(arr);
     });
     if (appendRows.length) { // 新しい行はまとめて1回で書く（140件でも数秒）
-      var start = sh.getLastRow() + 1;
+      var start = lastDataRow_(sh, cols) + 1;
       sh.getRange(start, 1, appendRows.length, width).setValues(appendRows);
       if (cols['重複（他の担当者）']) { // 数式の列は空のまま上書きしたくないので、ひな形の数式を入れ直す
         var f = []; for (var r = start; r < start + appendRows.length; r++) f.push(['=IF(E' + r + '="","",IF(COUNTIF($E$2:$E,E' + r + ')>1,IFERROR(TEXTJOIN("、",TRUE,UNIQUE(FILTER($F$2:$F,$E$2:$E=E' + r + ',ROW($E$2:$E)<>' + r + '))),"（担当者未記入）"),""))']);
