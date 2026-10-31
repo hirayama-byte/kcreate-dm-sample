@@ -323,6 +323,7 @@
           <div class="card"><div class="card-h"><h2 id="sTitle">自分の署名（メールの最後に付きます）</h2><span class="sp"></span><select id="sTarget" class="hide" style="max-width:240px" title="管理者は他のメンバーの設定を代理で変えられます"></select></div><div class="card-b">
             <div class="field hide" id="sNewWrap"><label>新しいメンバーのメールアドレス（会社のアカウント）</label><input id="sNewEmail" type="email" placeholder="例: sato@k-create.co.jp"></div>
             <div class="field"><label>名前（必須・メールの差出人になります。姓 名 のフルネームで）</label><input id="sName" type="text" placeholder="例: 平山 竜也"></div>
+            <div class="field hide" id="sPlanWrap"><label>自動送信（代理）</label><label class="switch"><input type="checkbox" id="sPlan"><span id="sPlanTxt">自動送信をオンにする予定（本人が次に一斉DMを開いたとき自動でオン）</span></label></div>
             <div class="field"><label>いつもの宛名の形（新しい配信を作るときの既定。配信ごとに変えられます）</label><select id="sAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select></div>
             <div class="field"><label>署名（自由に書けます。名前・会社名・電話・住所などを好きな並びで）</label>
               <div class="toolbar" data-for="sSig"></div><div id="sSig" class="editor sig" contenteditable="true" data-ph="空のままだと 名前・会社名・住所・メール が自動で付きます"></div>
@@ -560,7 +561,7 @@ function addrStyle_(v) { return ADDR_STYLES.indexOf(String(v || '')) >= 0 ? Stri
 var AUTO_HOUR = 9; // （旧）毎朝の時刻。2026-10-31〜は1時間ごと
 var AUTO_FROM = 8, AUTO_TO = 19; // 自動送信する時間帯（8:00〜19:59。夜中には送らない）
 var SEND_HEAD = ['campaign_id', 'recipient_id', 'token', 'email', 'company', 'name', 'status', 'sent_at', 'error']; // status: pending / sent / failed
-var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature', 'addr_style', 'auto_send']; // auto_send=1: 自動送信オン（管理者・準備する人が見られるように） // addr_style = その人のいつもの宛名の形（新しい配信の既定）
+var MEMBER_HEAD = ['email', 'name', 'title', 'tel', 'signature', 'addr_style', 'auto_send', 'auto_plan']; // auto_plan=1: 管理者が「オン予定」に（本人が次に開いたら自動でオン） // auto_send=1: 自動送信オン（管理者・準備する人が見られるように） // addr_style = その人のいつもの宛名の形（新しい配信の既定）
 var DEFAULT_SETTINGS = [
   ['company', '株式会社 ケイ・クリエイト'],
   ['address', '〒493-0005　愛知県一宮市木曽川町里小牧寺東125番地'],
@@ -665,10 +666,10 @@ function settings_() {
 function isAdmin_(email) { return rows_('admins').some(function (r) { return String(r[0]).toLowerCase() === email; }); }
 function member_(email) {
   var r = rows_('members').filter(function (x) { return String(x[0]).toLowerCase() === email; })[0];
-  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '', addrStyle: addrStyle_(r ? r[5] : ''), autoSend: !!(r && String(r[6] || '') === '1') };
+  return { email: email, name: r ? String(r[1]) : '', title: r ? String(r[2]) : '', tel: r ? String(r[3]) : '', signature: r ? String(r[4]) : '', addrStyle: addrStyle_(r ? r[5] : ''), autoSend: !!(r && String(r[6] || '') === '1'), autoPlan: !!(r && String(r[7] || '') === '1') };
 }
 function membersList_() {
-  return rows_('members').map(function (r) { return { email: String(r[0]).toLowerCase(), name: String(r[1]), autoSend: String(r[6] || '') === '1' }; }).filter(function (m) { return m.name; });
+  return rows_('members').map(function (r) { return { email: String(r[0]).toLowerCase(), name: String(r[1]), autoSend: String(r[6] || '') === '1', autoPlan: String(r[7] || '') === '1' }; }).filter(function (m) { return m.name; });
 }
 function checkMember_(email) {
   if (!member_(email).name) throw new Error('先に自分の名前を登録してください（左下の「名前を登録」）');
@@ -705,6 +706,7 @@ function init() {
     members: membersList_(),
     genres: genres_(),
     recentDays: RECENT_DAYS,
+    autoEnabledByAdmin: applyAutoPlan_(),
     autoSend: autoSendOn_(),
     autoHour: AUTO_HOUR, autoFrom: AUTO_FROM, autoTo: AUTO_TO,
     quota: MailApp.getRemainingDailyQuota(), // 今日あと何通送れるか（自分のアカウント）
@@ -725,7 +727,9 @@ function setMemberProfile(email, p) {
   if (!isAdmin_(myEmail_())) throw new Error('他の人の設定は管理者だけが変えられます');
   email = String(email || '').trim().toLowerCase();
   if (!isEmail_(email)) throw new Error('メールアドレスの形が正しくありません');
-  return saveProfile_(email, p);
+  var m = saveProfile_(email, p);
+  if (p.autoPlan !== undefined) { setMemberCol_(email, 8, p.autoPlan && !m.autoSend ? '1' : ''); m = member_(email); }
+  return m;
 }
 function saveProfile_(email, p) {
   var name = String(p.name || '').trim();
@@ -1310,7 +1314,8 @@ function bulkTargets_(f) {
 }
 function previewBulk(f) {
   var auto = {}; membersList_().forEach(function (m) { auto[m.email] = m.autoSend; });
-  return bulkTargets_(f).map(function (t) { return { email: t.email, name: t.name, count: t.count, autoSend: !!auto[t.email] }; });
+  var plan = {}; membersList_().forEach(function (m) { plan[m.email] = m.autoPlan; });
+  return bulkTargets_(f).map(function (t) { return { email: t.email, name: t.name, count: t.count, autoSend: !!auto[t.email], autoPlan: !auto[t.email] && !!plan[t.email] }; });
 }
 // 担当者ごとに「送信待ち」の配信を作る（差出人・{担当者名}・署名は送るときに担当者本人のものになる）
 function prepareBulk(f) {
@@ -1375,6 +1380,18 @@ function setAutoSend(on) {
   PropertiesService.getUserProperties().setProperty('auto_send', on ? '1' : '');
   setMemberAuto_(email, on);
   return { autoSend: !!on, autoHour: AUTO_HOUR, autoFrom: AUTO_FROM, autoTo: AUTO_TO };
+}
+function setMemberCol_(email, col, val) {
+  var sh = sheet_('members'), rows = rows_('members');
+  for (var i = 0; i < rows.length; i++) if (String(rows[i][0]).toLowerCase() === email) { sh.getRange(i + 2, col).setValue(val); bust_('members'); return; }
+}
+// 本人が開いたとき: 管理者の「オン予定」があれば、本人のアカウントで自動送信をオンにする
+function applyAutoPlan_() {
+  var email = myEmail_(), m = member_(email);
+  if (!m.name || !m.autoPlan || m.autoSend) return false;
+  setAutoSend(true);
+  setMemberCol_(email, 8, '');
+  return true;
 }
 function setMemberAuto_(email, on) {
   var sh = sheet_('members'), rows = rows_('members');
@@ -1623,6 +1640,7 @@ function boot() {
   call('init').then(function (r) {
     S.me = r.me; S.members = r.members; S.settings = r.settings; S.quota = r.quota; S.genres = r.genres || []; S.recentDays = r.recentDays || 30; S.autoSend = !!r.autoSend; S.autoHour = r.autoHour || 9;
     renderSyncBar();
+    if (r.autoEnabledByAdmin) modal('<div class="mh"><h3>自動送信をオンにしました</h3></div><div class="mb"><p style="margin:0">管理者の設定により、あなたの自動送信をオンにしました。他の人がまとめて準備した配信が、あなたのアドレスから自動で送られます（1時間ごと・8〜19時。送ったらメールでお知らせします）。</p><p class="hint" style="margin:10px 0 0">止めたいときは「署名・設定」でオフにできます。</p></div><div class="mf"><button class="btn primary" data-close>OK</button></div>', function (bg) { bg.querySelector('[data-close]').onclick = function () { bg.remove(); }; });
     $('pickRecentDays').textContent = S.recentDays;
     [$('pickGenre'), $('recGenre')].forEach(function (sel) { sel.innerHTML = '<option value="">ジャンル: すべて</option>' + S.genres.map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('') + '<option value="-">（ジャンルなし）</option>'; });
     $('quota').textContent = r.quota;
@@ -1962,7 +1980,7 @@ $('bCheck').onclick = function () {
   call('previewBulk', bulkFilter()).then(function (list) {
     B.targets = list; B.checked = list.length > 0;
     var total = list.reduce(function (a, x) { return a + x.count; }, 0);
-    $('bTargets').innerHTML = list.length ? '<table><thead><tr><th>担当者</th><th>自動送信</th><th class="num">宛先</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + esc(x.name) + '<div class="sub">' + esc(x.email) + '</div></td><td>' + (x.autoSend ? '<span class="tag sent">オン</span>' : '<span class="tag ready" title="本人が「送信する」を押すまで送られません">オフ（本人が送信）</span>') + '</td><td class="num">' + x.count + ' 件</td></tr>'; }).join('') + '<tr><td><b>合計 ' + list.length + ' 人</b></td><td></td><td class="num"><b>' + total + ' 件</b></td></tr></tbody></table>' + (list.some(function (x) { return !x.autoSend; }) ? '<p class="hint" style="margin:8px 0 0">「オフ」の人は自動送信をオンにしていないため、本人が送信するまで送られません（オンは本人が「署名・設定」で1回だけ）。</p>' : '') : '<div class="empty">対象の宛先がありません</div>';
+    $('bTargets').innerHTML = list.length ? '<table><thead><tr><th>担当者</th><th>自動送信</th><th class="num">宛先</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + esc(x.name) + '<div class="sub">' + esc(x.email) + '</div></td><td>' + (x.autoSend ? '<span class="tag sent">オン</span>' : x.autoPlan ? '<span class="tag sending" title="本人が次に開いたらオンになります">オン予定</span>' : '<span class="tag ready" title="本人が「送信する」を押すまで送られません">オフ（本人が送信）</span>') + '</td><td class="num">' + x.count + ' 件</td></tr>'; }).join('') + '<tr><td><b>合計 ' + list.length + ' 人</b></td><td></td><td class="num"><b>' + total + ' 件</b></td></tr></tbody></table>' + (list.some(function (x) { return !x.autoSend; }) ? '<p class="hint" style="margin:8px 0 0">「オフ」の人は自動送信をオンにしていないため、本人が送信するまで送られません（オンは本人が「署名・設定」で1回だけ）。</p>' : '') : '<div class="empty">対象の宛先がありません</div>';
     $('bPrepare').disabled = !B.checked; $('bHint').textContent = B.checked ? list.length + ' 人・' + total + ' 件分の配信を準備します' : '対象がありません';
   }).catch(fail);
 };
@@ -2046,6 +2064,10 @@ function renderTargetSel() {
   sel.value = S.sTarget;
 }
 function fillProfile(m) {
+  var proxy = !!S.sTarget;
+  $('sPlanWrap').classList.toggle('hide', !proxy);
+  $('sPlan').checked = !!(m.autoSend || m.autoPlan); $('sPlan').disabled = !!m.autoSend;
+  $('sPlanTxt').textContent = m.autoSend ? '自動送信はオンです（本人がオンにしています。オフにできるのは本人だけです）' : '自動送信をオンにする予定（本人が次に一斉DMを開いたとき自動でオン）';
   $('sName').value = m.name || ''; edSet('sSig', m.signature || ''); $('sAddr').value = m.addrStyle || 'full';
   var self = !S.sTarget;
   $('sTitle').textContent = self ? '自分の署名（メールの最後に付きます）' : (S.sTarget === 'new' ? '新しいメンバーの登録（代理）' : (m.name || m.email) + ' さんの設定（代理）');
@@ -2081,6 +2103,7 @@ $('sTpl').onclick = function () {
 };
 $('sSave').onclick = function () {
   var prof = { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value };
+  if (S.sTarget && !$('sPlan').disabled) prof.autoPlan = $('sPlan').checked;
   if (!S.sTarget) { call('setMyProfile', prof).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail); return; }
   var em = targetEmail(); if (!em) { toast('メールアドレスを入力してください', true); return; }
   call('setMemberProfile', em, prof).then(function (m) {
