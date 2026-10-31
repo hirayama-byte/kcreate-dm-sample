@@ -320,8 +320,9 @@
       <!-- 署名・設定 -->
       <section id="settings" class="hide">
         <div class="grid2">
-          <div class="card"><div class="card-h"><h2>自分の署名（メールの最後に付きます）</h2></div><div class="card-b">
-            <div class="field"><label>名前（必須・メールの差出人になります）</label><input id="sName" type="text"></div>
+          <div class="card"><div class="card-h"><h2 id="sTitle">自分の署名（メールの最後に付きます）</h2><span class="sp"></span><select id="sTarget" class="hide" style="max-width:240px" title="管理者は他のメンバーの設定を代理で変えられます"></select></div><div class="card-b">
+            <div class="field hide" id="sNewWrap"><label>新しいメンバーのメールアドレス（会社のアカウント）</label><input id="sNewEmail" type="email" placeholder="例: sato@k-create.co.jp"></div>
+            <div class="field"><label>名前（必須・メールの差出人になります。姓 名 のフルネームで）</label><input id="sName" type="text" placeholder="例: 平山 竜也"></div>
             <div class="field"><label>いつもの宛名の形（新しい配信を作るときの既定。配信ごとに変えられます）</label><select id="sAddr"><option value="full">会社名＋フルネーム（株式会社〇〇／山田 太郎様）</option><option value="surname">会社名＋苗字（株式会社〇〇／山田様）</option><option value="surname_only">苗字だけ（山田様・会社名なし）</option></select></div>
             <div class="field"><label>署名（自由に書けます。名前・会社名・電話・住所などを好きな並びで）</label>
               <div class="toolbar" data-for="sSig"></div><div id="sSig" class="editor sig" contenteditable="true" data-ph="空のままだと 名前・会社名・住所・メール が自動で付きます"></div>
@@ -711,8 +712,21 @@ function init() {
   };
 }
 
-function setMyProfile(p) {
-  var email = myEmail_();
+function setMyProfile(p) { return saveProfile_(myEmail_(), p); }
+// 管理者が他のメンバーの名前・署名・宛名の形を代理で登録・変更する（まだ使っていない人の事前登録にも使う）
+function getMemberProfile(email) {
+  if (!isAdmin_(myEmail_())) throw new Error('他の人の設定は管理者だけが見られます');
+  email = String(email || '').trim().toLowerCase();
+  if (!isEmail_(email)) throw new Error('メールアドレスの形が正しくありません');
+  return member_(email);
+}
+function setMemberProfile(email, p) {
+  if (!isAdmin_(myEmail_())) throw new Error('他の人の設定は管理者だけが変えられます');
+  email = String(email || '').trim().toLowerCase();
+  if (!isEmail_(email)) throw new Error('メールアドレスの形が正しくありません');
+  return saveProfile_(email, p);
+}
+function saveProfile_(email, p) {
   var name = String(p.name || '').trim();
   if (!name) throw new Error('名前を入力してください');
   var cur = member_(email);
@@ -1554,7 +1568,7 @@ var WORKER_TOKEN = 'test-token';
 </script>
 <script id="app">
 var booted = false;
-var S = { listSel: {}, recFolder: 'mine', genres: [], recentDays: 30, me: null, members: [], settings: {}, quota: null, camps: [], recs: [], tab: 'list', compose: { id: '', sel: {} }, result: null, recSel: {}, pvTimer: null };
+var S = { sTarget: '', listSel: {}, recFolder: 'mine', genres: [], recentDays: 30, me: null, members: [], settings: {}, quota: null, camps: [], recs: [], tab: 'list', compose: { id: '', sel: {} }, result: null, recSel: {}, pvTimer: null };
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function call(name) {
@@ -2009,27 +2023,54 @@ $('recSync').onclick = function () {
 };
 
 // ---------- 署名・設定 ----------
+function targetEmail() { return S.sTarget === 'new' ? $('sNewEmail').value.trim().toLowerCase() : (S.sTarget || S.me.email); }
+function renderTargetSel() {
+  var sel = $('sTarget'); sel.classList.toggle('hide', !S.me.isAdmin); if (!S.me.isAdmin) return;
+  sel.innerHTML = '<option value="">設定する人: 自分</option>' + S.members.filter(function (m) { return m.email !== S.me.email; }).map(function (m) { return '<option value="' + esc(m.email) + '">' + esc(m.name) + '</option>'; }).join('') + '<option value="new">＋ 新しいメンバーを登録</option>';
+  sel.value = S.sTarget;
+}
+function fillProfile(m) {
+  $('sName').value = m.name || ''; edSet('sSig', m.signature || ''); $('sAddr').value = m.addrStyle || 'full';
+  var self = !S.sTarget;
+  $('sTitle').textContent = self ? '自分の署名（メールの最後に付きます）' : (S.sTarget === 'new' ? '新しいメンバーの登録（代理）' : (m.name || m.email) + ' さんの設定（代理）');
+  $('sNewWrap').classList.toggle('hide', S.sTarget !== 'new');
+  renderSigPv();
+}
+$('sTarget').onchange = function () {
+  S.sTarget = this.value;
+  if (!S.sTarget) { fillProfile(S.me); return; }
+  if (S.sTarget === 'new') { $('sNewEmail').value = ''; fillProfile({ name: '', signature: '', addrStyle: 'full' }); $('sNewEmail').focus(); return; }
+  call('getMemberProfile', S.sTarget).then(fillProfile).catch(fail);
+};
 function renderSettings() {
   var m = S.me, st = S.settings;
-  $('sName').value = m.name; edSet('sSig', m.signature); $('sAddr').value = m.addrStyle || 'full';
+  renderTargetSel();
+  if (S.sTarget && S.sTarget !== 'new') { call('getMemberProfile', S.sTarget).then(fillProfile).catch(fail); } else fillProfile(S.sTarget === 'new' ? { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value } : m);
+  $('sTitle').textContent = $('sTitle').textContent;
   $('sCompany').value = st.company; $('sAddress').value = st.address; $('sUnsub').value = st.unsub_text; $('sTplText').value = st.sig_template || ''; $('sMaster').value = st.master_sheet_id || '';
   $('autoSend').checked = !!S.autoSend; $('autoHour').textContent = S.autoHour || 9;
   renderSigPv();
 }
 function renderSigPv() {
-  var sig = autolinkPv(sigHtml({ name: $('sName').value, signature: edHtml('sSig'), email: S.me.email }, { company: $('sCompany').value, address: $('sAddress').value }));
+  var sig = autolinkPv(sigHtml({ name: $('sName').value, signature: edHtml('sSig'), email: targetEmail() }, { company: $('sCompany').value, address: $('sAddress').value }));
   $('sigPv').innerHTML = '<div style="line-height:1.5;padding:8px 0">--<br>' + sig + '<p style="font-size:12px;color:#888">' + esc($('sUnsub').value) + '<br><a href="#" onclick="return false">配信停止</a></p></div>';
 }
 ['sName', 'sSig', 'sCompany', 'sAddress', 'sUnsub'].forEach(function (id) { $(id).oninput = renderSigPv; });
 // ひな形: 会社の情報にある sig_template（{名前}{メール}{会社名}{住所} は自動・{フリガナ}{携帯}{LINE ID} は各自が書き換える）
-function fillTpl(tpl) { var st = S.settings; return String(tpl || '').replace(/\{名前\}/g, $('sName').value || S.me.name || '').replace(/\{メール\}/g, S.me.email).replace(/\{会社名\}/g, st.company).replace(/\{住所\}/g, st.address); }
+function fillTpl(tpl) { var st = S.settings; return String(tpl || '').replace(/\{名前\}/g, $('sName').value || (S.sTarget ? '' : S.me.name) || '').replace(/\{メール\}/g, targetEmail()).replace(/\{会社名\}/g, st.company).replace(/\{住所\}/g, st.address); }
 $('sTpl').onclick = function () {
-  var tpl = S.settings.sig_template || [$('sName').value || S.me.name, S.settings.company, S.settings.address, 'TEL ', S.me.email].filter(String).join('\n');
+  var tpl = S.settings.sig_template || [$('sName').value || (S.sTarget ? '' : S.me.name), S.settings.company, S.settings.address, 'TEL ', targetEmail()].filter(String).join('\n');
   edSet('sSig', fillTpl(tpl)); renderSigPv();
   var left = (edText('sSig').match(/\{[^}]+\}/g) || []); if (left.length) toast(left.join('・') + ' の部分を自分のものに書き換えてください');
 };
 $('sSave').onclick = function () {
-  call('setMyProfile', { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value }).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail);
+  var prof = { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value };
+  if (!S.sTarget) { call('setMyProfile', prof).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail); return; }
+  var em = targetEmail(); if (!em) { toast('メールアドレスを入力してください', true); return; }
+  call('setMemberProfile', em, prof).then(function (m) {
+    toast((m.name || em) + ' さんの設定を保存しました');
+    return call('init').then(function (r) { S.members = r.members; S.sTarget = em; renderTargetSel(); fillProfile(m); });
+  }).catch(fail);
 };
 $('sSaveCo').onclick = function () {
   call('setSettings', { company: $('sCompany').value, address: $('sAddress').value, unsub_text: $('sUnsub').value, sig_template: $('sTplText').value, master_sheet_id: $('sMaster').value }).then(function (s) { S.settings.company = s.company; S.settings.address = s.address; S.settings.unsub_text = s.unsub_text; S.settings.sig_template = s.sig_template || ''; S.settings.master_sheet_id = s.master_sheet_id || ''; $('sMaster').value = S.settings.master_sheet_id; renderSyncBar(); toast('保存しました'); }).catch(fail);
