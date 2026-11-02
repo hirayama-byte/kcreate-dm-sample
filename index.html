@@ -751,6 +751,10 @@ function setMemberProfile(email, p) {
 function saveProfile_(email, p) {
   var name = String(p.name || '').trim();
   if (!name) throw new Error('名前を入力してください');
+  // 同じ名前が別のアカウントにあれば止める（代理設定で前の人の名前・署名が別の人に保存される事故の防止 2026-11-02）
+  var key = name.replace(/[\s　]/g, '');
+  var dup = rows_('members').filter(function (r) { return String(r[0]).toLowerCase() !== email && String(r[1]).replace(/[\s　]/g, '') === key; })[0];
+  if (dup) throw new Error('「' + name + '」はすでに ' + String(dup[0]).toLowerCase() + ' の名前として登録されています。設定する人が正しいか確認してください');
   var cur = member_(email);
   var vals = [email, name, p.title === undefined ? cur.title : String(p.title || '').trim(), p.tel === undefined ? cur.tel : String(p.tel || '').trim(),
               p.signature === undefined ? cur.signature : richHtml_(p.signature), p.addrStyle === undefined ? cur.addrStyle : addrStyle_(p.addrStyle)];
@@ -2096,16 +2100,22 @@ function fillProfile(m) {
   $('sNewWrap').classList.toggle('hide', S.sTarget !== 'new');
   renderSigPv();
 }
+// 代理設定: 選んだ人の情報が届くまでは保存できないようにする（前の人の名前・署名が別の人に保存される事故の防止 2026-11-02）
+function loadTargetProfile(em) {
+  $('sSave').disabled = true; $('sName').value = ''; edSet('sSig', '');
+  $('sTitle').textContent = '読み込んでいます…';
+  return call('getMemberProfile', em).then(function (m) { if (S.sTarget !== em) return; fillProfile(m); $('sSave').disabled = false; }).catch(fail);
+}
 $('sTarget').onchange = function () {
-  S.sTarget = this.value;
+  S.sTarget = this.value; $('sSave').disabled = false;
   if (!S.sTarget) { fillProfile(S.me); return; }
   if (S.sTarget === 'new') { $('sNewEmail').value = ''; fillProfile({ name: '', signature: '', addrStyle: 'full' }); $('sNewEmail').focus(); return; }
-  call('getMemberProfile', S.sTarget).then(fillProfile).catch(fail);
+  loadTargetProfile(S.sTarget);
 };
 function renderSettings() {
   var m = S.me, st = S.settings;
   renderTargetSel();
-  if (S.sTarget && S.sTarget !== 'new') { call('getMemberProfile', S.sTarget).then(fillProfile).catch(fail); } else fillProfile(S.sTarget === 'new' ? { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value } : m);
+  if (S.sTarget && S.sTarget !== 'new') { loadTargetProfile(S.sTarget); } else fillProfile(S.sTarget === 'new' ? { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value } : m);
   $('sTitle').textContent = $('sTitle').textContent;
   $('sCompany').value = st.company; $('sAddress').value = st.address; $('sUnsub').value = st.unsub_text; $('sTplText').value = st.sig_template || ''; $('sMaster').value = st.master_sheet_id || '';
   $('autoSend').checked = !!S.autoSend; $('autoHour').textContent = S.autoHour || 9;
@@ -2124,6 +2134,7 @@ $('sTpl').onclick = function () {
   var left = (edText('sSig').match(/\{[^}]+\}/g) || []); if (left.length) toast(left.join('・') + ' の部分を自分のものに書き換えてください');
 };
 $('sSave').onclick = function () {
+  if ($('sSave').disabled) return;
   var prof = { name: $('sName').value, signature: edHtml('sSig'), addrStyle: $('sAddr').value };
   if (S.sTarget && !$('sPlan').disabled) prof.autoPlan = $('sPlan').checked;
   if (!S.sTarget) { call('setMyProfile', prof).then(function (me) { me.isAdmin = S.me.isAdmin; S.me = me; toast('保存しました'); boot(); }).catch(fail); return; }
