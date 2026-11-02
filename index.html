@@ -35,6 +35,8 @@
   .side-sec { padding: 14px 22px 6px; font-size: 10.5px; letter-spacing: .14em; color: #64748b; font-family: var(--mono); text-transform: uppercase; }
   #foldersWrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #folders { padding: 0 10px 10px; overflow: auto; flex: 1; }
+  /* メンバー欄はスクロールバーを出さない（名前の上でホイール・スワイプすればスクロールする）2026-11-02 */
+  #folders, .owner-grid { scrollbar-width: none; -ms-overflow-style: none; } #folders::-webkit-scrollbar, .owner-grid::-webkit-scrollbar { display: none; }
   #folders button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: none; color: var(--side-text); font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; cursor: pointer; text-align: left; }
   #folders button:hover { background: var(--side-2); color: var(--side-hi); }
   #folders button.on { background: rgba(20,184,166,.18); color: #fff; }
