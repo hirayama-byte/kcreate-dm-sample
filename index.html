@@ -3,6 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>一斉DM管理 サンプル版</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -203,6 +204,7 @@
       <button data-tab="bulk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z"/></svg>まとめて準備</button>
       <button data-tab="recipients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>宛先リスト</button>
       <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>署名・設定</button>
+      <button id="guideBtn" title="使い方ガイドを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>使い方</button>
     </nav>
     <div id="foldersWrap" class="hide"><div class="side-sec">宛先の担当</div><div id="folders"></div></div><div class="spacer" id="sideSpacer"></div>
     <div class="tools"><div class="tools-h">他のツール</div><a href="https://hirayama-byte.github.io/kcreate-qr-sample/" target="_blank" rel="noopener" title="QRコード管理を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v7h-7"/></svg>QRコード管理<span class="ext">↗</span></a><a href="https://script.google.com/a/macros/k-create.co.jp/s/AKfycbyR5vFkZm9bwKSyN2lZvcZcUUim_p-zxiiIx22jHiU8TRB81ZxAtyjvB6dtFjg-_GxH/exec" target="_blank" rel="noopener" title="見積作成を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>見積作成<span class="ext">↗</span></a><a href="https://hirayama-byte.github.io/kureyon-haifu-area/map.html#area=ichinomiya" target="_blank" rel="noopener" title="配布エリアMAPを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>配布エリアMAP<span class="ext">↗</span></a><a href="https://drive.google.com/drive/folders/1YoF1dmyjjA3O7a2sFe1EZfC9j9eCiYr5" target="_blank" rel="noopener" title="管理表（Google ドライブ）を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>管理表<span class="ext">↗</span></a></div>
@@ -832,6 +834,7 @@ function canSee_(ownerEmail, email) { return ownerEmail === email || isAdmin_(em
 // 全員の宛先（画面は最初「自分」だけを出し、ボタンで全員・他の人に切り替える）。削除済みは除く
 // 名前・会社名・メール・状態・メモの変更と削除は担当者と管理者だけ。担当者の変更（引き継ぎ）は誰でもできる（changeOwner）
 function listRecipients() {
+  syncUnsubs_();
   var names = {};
   membersList_().forEach(function (m) { names[m.email] = m.name; });
   var last = lastSentMap_();
@@ -1283,6 +1286,7 @@ function startSend(id, recipientIds) {
   if (c.ownerEmail !== email) throw new Error('他の人の配信は送れません');
   if (c.status !== 'draft') throw new Error('この配信はもう送信を始めています');
   if (!Array.isArray(recipientIds) || !recipientIds.length) throw new Error('宛先を選んでください');
+  syncUnsubs_();
   var recs = {}, ids = {};
   rows_('recipients').forEach(function (r) { if (!r[9]) recs[String(r[0])] = recObj_(r); });
   var list = [];
@@ -1319,6 +1323,7 @@ function queueSends_(c, list) {
 // f = { tag, genre, excludeRecent, owners: [email] }。送れる宛先（ok）だけ・担当者は名前登録済みの人だけ
 function bulkTargets_(f) {
   f = f || {};
+  syncUnsubs_();
   var names = {}; membersList_().forEach(function (m) { names[m.email] = m.name; });
   var last = lastSentMap_(), cut = ymd_(new Date(Date.now() - RECENT_DAYS * 86400000));
   var by = {}, seen = {};
@@ -1431,12 +1436,16 @@ function sendBatch(id) {
   if (!lock.tryLock(10000)) throw new Error('送信中です。少し待ってください');
   try {
     var me = member_(email), s = settings_(), sh = sheet_('sends'), rows = rows_('sends');
-    var seiOf = {}; rows_('recipients').forEach(function (r) { seiOf[String(r[0])] = recObj_(r).sei; }); // 苗字の宛名用
+    syncUnsubs_();
+    var seiOf = {}, stOf = {}; rows_('recipients').forEach(function (r) { var o = recObj_(r); seiOf[o.id] = o.sei; stOf[o.id] = r[9] ? 'deleted' : o.status; }); // 苗字の宛名用・今の状態
+    rows = rows_('sends');
     var n = 0, sent = 0, failed = 0, remaining = 0, sentIds = [];
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][0]) !== c.id || String(rows[i][6]) !== 'pending') continue;
       if (n >= BATCH) { remaining++; continue; }
       n++;
+      var nowSt = stOf[String(rows[i][1])];
+      if (nowSt && nowSt !== 'ok') { rows[i][6] = 'skipped'; sh.getRange(i + 2, 7, 1, 3).setValues([['skipped', now_(), nowSt === 'unsub' ? '配信停止のため送りませんでした' : nowSt === 'bounce' ? '不達のため送りませんでした' : '宛先が削除されたため送りませんでした']]); continue; }
       var rec = { company: String(rows[i][4]), name: String(rows[i][5]), email: String(rows[i][3]), sei: seiOf[String(rows[i][1])] || '' }, token = String(rows[i][2]);
       try {
         GmailApp.sendEmail(rec.email, merge_(c.subject, rec, me.name, c.addrStyle), buildText_(c, rec, me, token, s), { htmlBody: buildHtml_(c, rec, me, token, s), name: me.name });
@@ -1452,7 +1461,8 @@ function sendBatch(id) {
     if (!remaining) sheet_('campaigns').getRange(hit.row, 5).setValue('sent');
     bust_('sends'); bust_('campaigns');
     if (sentIds.length) masterSetCells_(sentIds, { '最終送信日時': now_() });
-    return { sent: total.sent, failed: total.failed, remaining: remaining, done: !remaining, quota: MailApp.getRemainingDailyQuota() };
+    var skipped = rows_('sends').filter(function (r) { return String(r[0]) === c.id && String(r[6]) === 'skipped'; }).length;
+    return { sent: total.sent, failed: total.failed, skipped: skipped, remaining: remaining, done: !remaining, quota: MailApp.getRemainingDailyQuota() };
   } finally { lock.releaseLock(); }
 }
 
@@ -1479,6 +1489,28 @@ function getCampaignStats(id) {
   var sum = { total: sends.length, sent: 0, failed: 0, opened: 0, clicked: 0, unsub: 0 };
   sends.forEach(function (x) { if (x.status === 'sent') sum.sent++; if (x.status === 'failed') sum.failed++; if (x.opened) sum.opened++; if (x.clicked) sum.clicked++; if (x.unsub) sum.unsub++; });
   return { campaign: c, sends: sends, links: linkTot, summary: sum, offline: offline };
+}
+// 配信停止の取り込み（2026-11-03）: 「結果」を開かなくても、送る前・宛先一覧を出す前に記録サービスの配信停止を宛先リストへ反映する
+// 配信ごとの停止数（summary）を前回取り込んだ数と比べ、増えた配信だけ詳しく見る。1回の呼び出しで1度だけ
+var unsubSynced_ = false;
+function syncUnsubs_() {
+  if (unsubSynced_) return 0; unsubSynced_ = true;
+  var ids = rows_('campaigns').map(function (r) { return campObj_(r); }).filter(function (c) { return c.status !== 'draft'; }).map(function (c) { return c.id; });
+  if (!ids.length) return 0;
+  var props = PropertiesService.getScriptProperties(), seen = {};
+  try { seen = JSON.parse(props.getProperty('UNSUB_SEEN') || '{}'); } catch (e) { seen = {}; }
+  var sums; try { sums = worker_('post', '/api/dm/summary', ids); } catch (e) { console.error(e); return 0; } // 記録サービスに繋がらないときは今ある状態で進める
+  var todo = ids.filter(function (id) { return Number((sums[id] || {}).unsub || 0) > Number(seen[id] || 0); });
+  if (!todo.length) return 0;
+  var byToken = {}; rows_('sends').forEach(function (r) { byToken[String(r[2])] = String(r[1]); });
+  var recIds = [];
+  todo.forEach(function (id) {
+    try { var st = worker_('get', '/api/dm/stats?campaign=' + id); Object.keys(st.unsub || {}).forEach(function (t) { if (byToken[t]) recIds.push(byToken[t]); }); seen[id] = Number(sums[id].unsub); }
+    catch (e) { console.error(e); }
+  });
+  if (recIds.length) markUnsub_(recIds);
+  props.setProperty('UNSUB_SEEN', JSON.stringify(seen));
+  return recIds.length;
 }
 function markUnsub_(ids) {
   var sh = sheet_('recipients'), rows = rows_('recipients'), changed = false;
@@ -1646,7 +1678,7 @@ var TITLES = { list: '配信一覧', compose: '新しい配信', bulk: 'まと�
 function show(tab) {
   S.tab = tab;
   ['list', 'result', 'compose', 'bulk', 'recipients', 'settings'].forEach(function (t) { $(t).classList.toggle('hide', t !== tab); });
-  document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab || (tab === 'result' && b.dataset.tab === 'list')); });
+  document.querySelectorAll('#tabs button[data-tab]').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab || (tab === 'result' && b.dataset.tab === 'list')); });
   $('foldersWrap').classList.toggle('hide', tab !== 'recipients'); $('sideSpacer').classList.toggle('hide', tab === 'recipients');
   $('title').textContent = TITLES[tab]; $('crumb').textContent = '';
   if (tab === 'list') loadList();
@@ -1656,7 +1688,11 @@ function show(tab) {
   if (tab === 'settings') renderSettings();
   if (tab === 'bulk') { loadRecs().then(renderBulk); }
 }
-document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = function () { if (b.dataset.tab === 'compose' && S.compose.id === '' && !$('cSubject').value) newCompose(); show(b.dataset.tab); }; });
+document.querySelectorAll('#tabs button[data-tab]').forEach(function (b) { b.onclick = function () { if (b.dataset.tab === 'compose' && S.compose.id === '' && !$('cSubject').value) newCompose(); show(b.dataset.tab); }; });
+
+// 使い方ガイド（サンプル版と同じ場所・架空データの画面写真入り・2026-11-03）
+var GUIDE_URL = 'https://hirayama-byte.github.io/kcreate-dm-sample/guide/';
+$('guideBtn').onclick = function () { window.open(GUIDE_URL, '_blank', 'noopener'); };
 
 // ---------- 起動 ----------
 function boot() {
@@ -1765,8 +1801,8 @@ function renderResult() {
   });
   $('rCount').textContent = rows.length + ' 件';
   $('rBody').innerHTML = rows.map(function (x) {
-    return '<tr><td class="nm">' + esc(x.company) + '</td><td>' + esc(x.name || '<span style="color:var(--faint)">（ご担当者様）</span>') + '</td><td class="mono" style="font-size:12px">' + esc(x.email) + '</td>' +
-      '<td>' + (x.status === 'failed' ? '<span class="tag unsub" title="' + esc(x.error) + '">失敗</span>' : '<span class="mono" style="font-size:12px;color:var(--muted)">' + esc(fmtD(x.sentAt)) + '</span>') + '</td>' +
+    return '<tr><td class="nm">' + esc(x.company) + '</td><td>' + (x.name ? esc(x.name) : '<span style="color:var(--faint)">（ご担当者様）</span>') + '</td><td class="mono" style="font-size:12px">' + esc(x.email) + '</td>' +
+      '<td>' + (x.status === 'failed' ? '<span class="tag unsub" title="' + esc(x.error) + '">失敗</span>' : x.status === 'skipped' ? '<span class="tag" title="' + esc(x.error) + '">送らず</span>' : '<span class="mono" style="font-size:12px;color:var(--muted)">' + esc(fmtD(x.sentAt)) + '</span>') + '</td>' +
       '<td>' + (x.opened ? '<span class="dot y"></span> <span class="mono" style="font-size:12px">' + esc(fmtD(x.opened)) + '</span>' + (x.openCount > 1 ? '<span class="pct">×' + x.openCount + '</span>' : '') : '<span class="dot"></span>') + '</td>' +
       x.clicks.map(function (k) { return '<td class="num">' + (k ? '<span class="dot c"></span> ' + k : '<span style="color:var(--faint)">−</span>') + '</td>'; }).join('') +
       '<td>' + (x.unsub ? '<span class="tag unsub">停止</span>' : '') + '</td></tr>';
@@ -1945,7 +1981,7 @@ $('sendBtn').onclick = function () {
 // 送信を繰り返す（30件ずつ）。進み具合は onProgress(done, total, b)
 function sendLoop(id, total, onProgress) {
   return call('sendBatch', id).then(function (b) {
-    var done = b.sent + b.failed; onProgress && onProgress(done, total, b);
+    var done = b.sent + b.failed + (b.skipped || 0); onProgress && onProgress(done, total, b);
     if (b.quota != null) { S.quota = b.quota; $('quota').textContent = b.quota; }
     return b.done ? b : sendLoop(id, total, onProgress);
   });
