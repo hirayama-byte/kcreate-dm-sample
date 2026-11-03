@@ -78,6 +78,11 @@
   .topbar h1 { font-size: 16px; margin: 0; font-weight: 700; }
   .topbar .crumb { color: var(--faint); font-size: 12px; font-family: var(--mono); }
   .topbar .sp { flex: 1; }
+  /* 使い方ガイド: 4つのツールとも右上・同じ見た目（QRコード管理に合わせる・2026-11-03） */
+  a.guide-link { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); font-size: 13.5px; font-weight: 500; text-decoration: none; white-space: nowrap; flex: none; }
+  a.guide-link:hover { border-color: #94a3b8; }
+  a.guide-link svg { flex: none; }
+  @media (max-width: 560px) { .topbar { gap: 6px 8px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; } .topbar h1 { white-space: nowrap; } .topbar .crumb { display: none; } .quota { order: 3; white-space: nowrap; } a.guide-link { padding: 0 10px; } } /* スマホ: 見出し＋使い方ガイドを1行目、残り通数を2行目に */
   .quota { font-size: 12px; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 4px 12px; }
   .quota b { font-family: var(--mono); color: var(--text); }
   main { padding: 24px 28px 40px; }
@@ -204,14 +209,13 @@
       <button data-tab="bulk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z"/></svg>まとめて準備</button>
       <button data-tab="recipients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>宛先リスト</button>
       <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>署名・設定</button>
-      <button id="guideBtn" title="使い方ガイドを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>使い方</button>
     </nav>
     <div id="foldersWrap" class="hide"><div class="side-sec">宛先の担当</div><div id="folders"></div></div><div class="spacer" id="sideSpacer"></div>
     <div class="tools"><div class="tools-h">他のツール</div><a href="https://hirayama-byte.github.io/kcreate-qr-sample/" target="_blank" rel="noopener" title="QRコード管理を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v7h-7"/></svg>QRコード管理<span class="ext">↗</span></a><a href="https://script.google.com/a/macros/k-create.co.jp/s/AKfycbyR5vFkZm9bwKSyN2lZvcZcUUim_p-zxiiIx22jHiU8TRB81ZxAtyjvB6dtFjg-_GxH/exec" target="_blank" rel="noopener" title="見積作成を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>見積作成<span class="ext">↗</span></a><a href="https://hirayama-byte.github.io/kureyon-haifu-area/map.html#area=ichinomiya" target="_blank" rel="noopener" title="配布エリアMAPを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>配布エリアMAP<span class="ext">↗</span></a><a href="https://drive.google.com/drive/folders/1YoF1dmyjjA3O7a2sFe1EZfC9j9eCiYr5" target="_blank" rel="noopener" title="管理表（Google ドライブ）を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>管理表<span class="ext">↗</span></a></div>
     <button class="me" id="meBtn"><span class="avatar" id="meAv">?</span><span><span id="meName">名前を登録</span><small id="meMail"></small></span><span class="edit-ico">変更</span></button>
   </aside>
   <div class="main">
-    <div class="topbar"><h1 id="title">配信一覧</h1><span class="crumb" id="crumb"></span><span class="sp"></span><span class="quota">今日あと <b id="quota">−</b> 通送れます</span></div>
+    <div class="topbar"><h1 id="title">配信一覧</h1><span class="crumb" id="crumb"></span><span class="sp"></span><span class="quota">今日あと <b id="quota">−</b> 通送れます</span><a class="guide-link" id="guideBtn" href="https://hirayama-byte.github.io/kcreate-dm-sample/guide/" target="_blank" rel="noopener" title="使い方ガイドを新しいタブで開く"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"/></svg>使い方ガイド</a></div>
     <main>
       <!-- 配信一覧 -->
       <section id="list">
@@ -1690,9 +1694,8 @@ function show(tab) {
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach(function (b) { b.onclick = function () { if (b.dataset.tab === 'compose' && S.compose.id === '' && !$('cSubject').value) newCompose(); show(b.dataset.tab); }; });
 
-// 使い方ガイド（サンプル版と同じ場所・架空データの画面写真入り・2026-11-03）
+// 使い方ガイド: 右上のリンク（#guideBtn・サンプル版と同じ場所・架空データの画面写真入り）
 var GUIDE_URL = 'https://hirayama-byte.github.io/kcreate-dm-sample/guide/';
-$('guideBtn').onclick = function () { window.open(GUIDE_URL, '_blank', 'noopener'); };
 
 // ---------- 起動 ----------
 function boot() {
