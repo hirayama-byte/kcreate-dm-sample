@@ -101,6 +101,8 @@
   button.btn:hover { background: #f8fafc; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.primary:hover { background: #0f766e; }
+  a.btn { font-size: 13.5px; height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; display: inline-flex; align-items: center; font-weight: 500; white-space: nowrap; text-decoration: none; color: var(--text); background: #fff; }
+  a.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); } a.btn.primary:hover { background: #0f766e; }
   button.danger { color: var(--danger); border-color: #fecaca; }
   button.danger:hover { background: #fef2f2; }
   button.ghost { border-color: transparent; background: none; color: var(--muted); }
@@ -228,7 +230,7 @@
         <div class="card">
           <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="listQ" type="text" placeholder="件名で探す"></div>
             <select id="listOwner" class="hide"><option value="">担当: 全員</option></select>
-            <span class="count" id="listCount"></span><button class="btn danger hide" id="listDel">選択を削除</button><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
+            <span class="count" id="listCount"></span><button class="btn hide" id="listClick" title="選んだ配信でリンクを押した人を、送った人ごとにスプレッドシートへ書き出します">クリックした人を書き出す</button><button class="btn danger hide" id="listDel">選択を削除</button><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
           <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="listAllCk" style="height:auto" title="表示中を全部選ぶ"></th><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th></tr></thead><tbody id="listBody"></tbody></table></div>
           <div class="empty hide" id="listEmpty">まだ配信がありません。「＋ 新しい配信」から作れます</div>
         </div>
@@ -367,6 +369,9 @@
 
   function Sheet(name) { this.name = name; this.data = []; this.textCols = {}; }
   Sheet.prototype.getName = function () { return this.name; };
+  Sheet.prototype.getSheetId = function () { return this.gid || (this.gid = 1000 + Math.floor(Math.random() * 1e6)); };
+  Sheet.prototype.clear = function () { this.data = []; this.textCols = {}; this.fmt = {}; return this; };
+  Sheet.prototype.setColumnWidths = function () { return this; };
   Sheet.prototype.setName = function (n) { this.name = n; return this; };
   Sheet.prototype.getMaxRows = function () { return Math.max(this.data.length, 1000); };
   // 本物と同じく、最後の空の行は数えない（中身を消した行の下には書かない）
@@ -412,6 +417,8 @@
     return this;
   };
   Range.prototype.setValue = function (v) { return this.setValues([[v]]); };
+  Range.prototype.setFontWeight = function (w) { var f = this.sh.fmt || (this.sh.fmt = {}); f[this.r] = Object.assign({}, f[this.r], { bold: w === 'bold' }); return this; };
+  Range.prototype.setBackground = function (c) { var f = this.sh.fmt || (this.sh.fmt = {}); f[this.r] = Object.assign({}, f[this.r], { bg: c }); return this; };
   Range.prototype.setFormulas = function (vals) { return this.setValues(vals); };
   Range.prototype.setDataValidation = function (rule) { this.sh.validation = this.sh.validation || {}; this.sh.validation[this.c] = rule; return this; };
   Range.prototype.clearContent = function () { var e = []; for (var i = 0; i < this.nr; i++) { var row = []; for (var j = 0; j < this.nc; j++) row.push(''); e.push(row); } return this.setValues(e); };
@@ -1728,6 +1735,87 @@ function getCampaignStats(id) {
   return { campaign: c, sends: sends, links: linkTot, summary: sum, offline: offline, archived: !!c.archived };
 }
 
+// ---------- クリックした人の一覧（2026-11-04・管理者） ----------
+// 選んだ配信（送信済み・送信中）で、本文のリンクを1回でも押した人を「送った人」ごとにまとめ、データのシートの「クリックした人」タブへ書き出す（毎回書き直す）
+// 同じ送った人の中で同じアドレスは1行にまとめる（押した配信・合計回数）。記録サービスに1件でも繋がらなければ書き出さない（抜けた一覧を作らない）
+var CLICK_TAB = 'クリックした人';
+var CLICK_HEAD = ['担当（送った人）', '会社名', '氏名', 'メールアドレス', 'クリック合計', '押した配信', '押したリンク', '最後に送った日', '配信停止'];
+function exportClickers(ids) {
+  schema_();
+  var email = myEmail_();
+  if (!isAdmin_(email)) throw new Error('クリックした人の一覧は管理者だけが作れます');
+  if (!Array.isArray(ids) || !ids.length) throw new Error('配信を選んでください');
+  var camps = [];
+  ids.forEach(function (id) {
+    var c; try { c = findCampRow_(String(id)).c; } catch (e) { return; }
+    if (c.status === 'sent' || c.status === 'sending') camps.push(c);
+  });
+  if (!camps.length) throw new Error('送信済みの配信を選んでください（下書き・送信待ちには結果がありません）');
+  // 記録サービスにまとめて問い合わせる
+  var res = UrlFetchApp.fetchAll(camps.map(function (c) {
+    return { url: WORKER_URL + '/api/dm/stats?campaign=' + encodeURIComponent(c.id), method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + WORKER_TOKEN } };
+  }));
+  var stats = res.map(function (r, i) {
+    if (r.getResponseCode() >= 300) throw new Error('記録サービスに接続できません (' + r.getResponseCode() + ')。少し待ってからもう一度お試しください');
+    return JSON.parse(r.getContentText() || '{}');
+  });
+  var names = {}; membersList_().forEach(function (m) { names[m.email] = m.name; });
+  var groups = {}; // 送った人 → { アドレス → 行 }
+  camps.forEach(function (c, i) {
+    var st = stats[i], clicks = st.clicks || {}, unsub = st.unsub || {}, links = JSON.parse(c.links || '[]');
+    var label = (c.sentAt ? c.sentAt.slice(5, 10).replace('-', '/') + ' ' : '') + c.subject;
+    var rows = c.archived ? archivedSends_(c) : campSends_(c).rows;
+    rows.forEach(function (r) {
+      var token = String(r[2]), cl = clicks[token]; if (!cl) return;
+      var total = 0, urls = [];
+      Object.keys(cl).forEach(function (n) { var k = Number(cl[n]) || 0; if (k > 0) { total += k; if (links[n]) urls.push(links[n]); } });
+      if (!total) return;
+      var g = groups[c.ownerEmail] || (groups[c.ownerEmail] = {}), addr = String(r[3]).toLowerCase();
+      var x = g[addr] || (g[addr] = { company: '', name: '', email: addr, clicks: 0, camps: [], urls: [], lastSent: '', unsub: false });
+      var sentAt = str_(r[7]);
+      if (!x.lastSent || sentAt >= x.lastSent) { x.company = String(r[4]); x.name = String(r[5]); x.lastSent = sentAt; } // 会社名・氏名は一番新しい配信のもの
+      x.clicks += total;
+      if (x.camps.indexOf(label) < 0) x.camps.push(label);
+      urls.forEach(function (u) { if (x.urls.indexOf(u) < 0) x.urls.push(u); });
+      if (unsub[token]) x.unsub = true;
+    });
+  });
+  // 並べ方: 送った人は名前順、その中はクリックの多い順→会社名順
+  var owners = Object.keys(groups).sort(function (a, b) { return String(names[a] || a).localeCompare(String(names[b] || b), 'ja'); });
+  var out = [], heads = [], summary = [], people = 0;
+  out.push(['クリックした人の一覧（' + now_() + ' 書き出し・配信 ' + camps.length + ' 件・' + email + '）', '', '', '', '', '', '', '', '']);
+  out.push(['', '', '', '', '', '', '', '', '']);
+  owners.forEach(function (o) {
+    var list = Object.keys(groups[o]).map(function (k) { return groups[o][k]; });
+    list.sort(function (a, b) { return b.clicks - a.clicks || a.company.localeCompare(b.company, 'ja'); });
+    var nm = names[o] || o;
+    heads.push(out.length + 1);
+    out.push(['■ ' + nm + '（' + list.length + ' 人）', '', '', '', '', '', '', '', '']);
+    out.push(CLICK_HEAD.slice());
+    list.forEach(function (x) { out.push([nm, x.company, x.name || '（ご担当者様）', x.email, x.clicks, x.camps.join('\n'), x.urls.join('\n'), x.lastSent, x.unsub ? '停止' : '']); });
+    out.push(['', '', '', '', '', '', '', '', '']);
+    summary.push({ email: o, name: nm, count: list.length });
+    people += list.length;
+  });
+  if (!owners.length) out.push(['選んだ配信でリンクを押した人はいません', '', '', '', '', '', '', '', '']);
+  // 書き出し（タブは無ければ作る・あれば中身を消して書き直す）
+  var ss = ss_(), sh = ss.getSheetByName(CLICK_TAB) || ss.insertSheet(CLICK_TAB);
+  sh.clear();
+  sh.getRange('A:D').setNumberFormat('@'); sh.getRange('F:I').setNumberFormat('@'); // 日時やアドレスを勝手に変換させない（E のクリック数は数字のまま）
+  sh.getRange(1, 1, out.length, CLICK_HEAD.length).setValues(out);
+  try {
+    sh.getRange(1, 1).setFontWeight('bold');
+    heads.forEach(function (r) {
+      sh.getRange(r, 1, 1, CLICK_HEAD.length).setBackground('#dbeafe').setFontWeight('bold');
+      sh.getRange(r + 1, 1, 1, CLICK_HEAD.length).setBackground('#f1f5f9').setFontWeight('bold');
+    });
+    sh.setColumnWidths(1, 1, 110); sh.setColumnWidths(2, 1, 200); sh.setColumnWidths(3, 1, 120); sh.setColumnWidths(4, 1, 230);
+    sh.setColumnWidths(5, 1, 80); sh.setColumnWidths(6, 1, 260); sh.setColumnWidths(7, 1, 260); sh.setColumnWidths(8, 1, 120); sh.setColumnWidths(9, 1, 70);
+  } catch (e) { console.error(e); } // 見た目だけなので失敗しても一覧は残す
+  SpreadsheetApp.flush();
+  return { url: ss.getUrl() + '#gid=' + sh.getSheetId(), campaigns: camps.length, skipped: ids.length - camps.length, people: people, groups: summary };
+}
+
 // ---------- 配信停止の取り込み（2026-11-03 改） ----------
 // 記録サービスの「前回以降に増えた配信停止」だけを取る（UNSUB_CURSOR = 最後に取り込んだ番号）。配信がいくつあっても1回の軽い問い合わせで済む
 // 送る前・宛先一覧を出す前に呼ぶ。1回の呼び出しで1度だけ
@@ -2090,7 +2178,26 @@ function renderList() {
   document.querySelectorAll('#listBody .lck').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.listSel[ck.dataset.id] = true; else delete S.listSel[ck.dataset.id]; updateListSel(); }; });
   updateListSel();
 }
-function updateListSel() { var n = Object.keys(S.listSel).length; $('listDel').classList.toggle('hide', !n); $('listDel').textContent = '選択を削除（' + n + '）'; }
+function updateListSel() {
+  var n = Object.keys(S.listSel).length; $('listDel').classList.toggle('hide', !n); $('listDel').textContent = '選択を削除（' + n + '）';
+  var m = S.camps.filter(function (c) { return S.listSel[c.id] && (c.status === 'sent' || c.status === 'sending'); }).length; // 結果があるのは送信済み・送信中だけ
+  if ($('listClick').disabled) return;
+  $('listClick').classList.toggle('hide', !(S.me && S.me.isAdmin && m)); $('listClick').textContent = 'クリックした人を書き出す（' + m + '）';
+}
+// クリックした人の一覧（管理者・2026-11-04）: 選んだ配信 → 送った人ごとにシートの「クリックした人」タブへ
+$('listClick').onclick = function () {
+  var ids = Object.keys(S.listSel); if (!ids.length) return;
+  var b = $('listClick'); b.disabled = true; b.textContent = '書き出し中…';
+  call('exportClickers', ids).then(function (r) {
+    b.disabled = false; updateListSel();
+    modal('<div class="mh"><h3>クリックした人を書き出しました</h3></div><div class="mb"><p style="margin:0 0 10px">配信 <b>' + r.campaigns + ' 件</b>で、リンクを押した人は <b>' + r.people + ' 人</b>でした。' +
+      (r.skipped ? '<br><span class="hint">（下書き・送信待ちの ' + r.skipped + ' 件は結果がないので除きました）</span>' : '') + '</p>' +
+      (r.groups.length ? '<div class="tbl"><table id="clickSum"><thead><tr><th>送った人</th><th class="num">クリックした人</th></tr></thead><tbody>' + r.groups.map(function (g) { return '<tr><td>' + esc(g.name) + '</td><td class="num">' + g.count + ' 人</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
+      '<p class="hint" style="margin:10px 0 0">スプレッドシートの「クリックした人」タブに、送った人ごとに並べました（書き出すたびに上書きされます）。</p></div>' +
+      '<div class="mf"><a class="btn primary" id="clickOpen" href="' + esc(r.url) + '" target="_blank" rel="noopener">シートを開く</a><button class="btn" data-close>閉じる</button></div>',
+      function (bg) { bg.querySelector('[data-close]').onclick = function () { bg.remove(); }; });
+  }).catch(function (e) { b.disabled = false; updateListSel(); fail(e); });
+};
 $('listAllCk').onchange = function () { document.querySelectorAll('#listBody .lck:not(:disabled)').forEach(function (ck) { if ($('listAllCk').checked) S.listSel[ck.dataset.id] = true; else delete S.listSel[ck.dataset.id]; }); renderList(); };
 $('listDel').onclick = function () {
   var ids = Object.keys(S.listSel); if (!ids.length) return;
