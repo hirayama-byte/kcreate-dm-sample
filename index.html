@@ -159,6 +159,7 @@
   .editor:empty::before { content: attr(data-ph); color: var(--faint); }
   .editor.sig { min-height: 120px; }
   .preview { border: 1px solid var(--line); border-radius: 8px; background: #fafafa; padding: 4px 14px; min-height: 240px; font-size: 13.5px; }
+  .editor img, .preview img { max-width: 100%; height: auto; }
   .preview, .editor { overflow-wrap: anywhere; word-break: break-all; } /* 署名の「****」の長い行や長い URL も折り返す */
   .preview .mail-h { font-size: 12px; color: var(--muted); border-bottom: 1px dashed var(--line); padding: 8px 0; margin-bottom: 6px; }
   .preview .mail-h b { color: var(--text); font-size: 13.5px; }
@@ -238,7 +239,7 @@
 
       <!-- 配信の結果 -->
       <section id="result" class="hide">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="backBtn">← 配信一覧</button><h2 style="margin:0;font-size:16px" id="rTitle"></h2><span class="sp" style="flex:1"></span><button class="btn" id="copyBtn">コピーして新しく作る</button></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="backBtn">← 配信一覧</button><h2 style="margin:0;font-size:16px" id="rTitle"></h2><span class="sp" style="flex:1"></span><button class="btn" id="unopenedBtn" title="この配信を開いていない人の、共有シートの「状態」を「未開封」にします">未開封を共有シートに反映</button><button class="btn" id="copyBtn">コピーして新しく作る</button></div>
         <div class="notice hide" id="rArchived">古い配信なので、送信記録は保管用のファイル（アーカイブ）から表示しています</div>
         <div class="notice hide" id="rResume" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">この配信はまだ全員に送り終わっていません（今日の上限で止まった・途中で画面を閉じた など）<button class="btn primary" id="rResumeBtn">続きを送る</button></div>
         <div class="notice hide" id="rOffline">記録サービスにつながらないため、開封・クリックは表示できません。あとで開き直してください</div>
@@ -439,13 +440,14 @@
     return tf;
   };
 
-  function Spreadsheet(id, name) { this.id = id; this.name = name; this.sheets = [new Sheet('シート1')]; }
+  function Spreadsheet(id, name) { this.id = id; this.name = name; this.sheets = [new Sheet('シート1')]; this.sheets[0].parent = this; }
   Spreadsheet.prototype.getId = function () { return this.id; };
   Spreadsheet.prototype.getUrl = function () { return 'https://docs.google.com/spreadsheets/d/' + this.id; };
   Spreadsheet.prototype.getSpreadsheetTimeZone = function () { return this.tz || 'GMT'; };
   Spreadsheet.prototype.setSpreadsheetTimeZone = function (tz) { this.tz = tz; };
   Spreadsheet.prototype.getSheetByName = function (n) { return this.sheets.filter(function (s) { return s.name === n; })[0] || null; };
-  Spreadsheet.prototype.insertSheet = function (n) { var s = new Sheet(n); this.sheets.push(s); return s; };
+  Spreadsheet.prototype.insertSheet = function (n) { var s = new Sheet(n); s.parent = this; this.sheets.push(s); return s; };
+Sheet.prototype.getParent = function () { return this.parent; };
   Spreadsheet.prototype.deleteSheet = function (s) { this.sheets.splice(this.sheets.indexOf(s), 1); };
   Spreadsheet.prototype.getSheets = function () { return this.sheets.slice(); };
   Sheet.prototype.deleteRow = function (r) { this.data.splice(r - 1, 1); return this; };
@@ -540,6 +542,15 @@
       var u = new URL(url), p = u.pathname, q = u.searchParams, m = (opt.method || 'get').toLowerCase();
       w.calls.push(m + ' ' + p);
       if (p === '/api/dm/campaigns' && m === 'post') { var b = JSON.parse(opt.payload); w.campaigns[b.id] = { links: b.links || [] }; return res(200, { ok: true }); }
+      // 本文の画像・資料（2026-11-10）
+      if (p === '/api/dm/files' && m === 'post') {
+        var fb = JSON.parse(opt.payload), okT = { 'image/png': 1, 'image/jpeg': 1, 'image/gif': 1, 'image/webp': 1, 'application/pdf': 1 };
+        if (!okT[fb.type]) return res(400, { error: 'この種類のファイルは使えません（画像・PDFのみ）' });
+        w.files = w.files || {}; var fid = 'f' + ('000000000000000' + (Object.keys(w.files).length + 1)).slice(-15);
+        var fname = String(fb.name || 'file').replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 120);
+        w.files[fid] = { name: fname, type: fb.type, data: fb.data };
+        return res(200, { id: fid, name: fname, type: fb.type, size: Math.floor(String(fb.data).length * 3 / 4) });
+      }
       if (p === '/api/dm/sends' && m === 'post') { var l = JSON.parse(opt.payload); if (l.length > 5000) return res(400, { error: 'array required' }); l.forEach(function (x) { w.sends[x.token] = x.campaign; if (x.recipient) w.recipient[x.token] = x.recipient; }); return res(200, { ok: true }); }
       // 前回以降に増えた配信停止（2026-11-03〜）。id = 取り込みの続きの番号
       if (p === '/api/dm/unsubs' && m === 'get') {
@@ -1049,12 +1060,19 @@ function deleteRecipients(ids) {
 
 // ---------- 本文の形（HTML）----------
 // 画面の編集欄から来る HTML のうち、残すのは 太字・下線・文字色・文字サイズ・改行 だけ（それ以外のタグ・属性・スクリプトは捨てる）
-var RICH_TAGS = { b: 1, strong: 1, u: 1, i: 1, em: 1, span: 1, div: 1, p: 1, br: 1 };
+var RICH_TAGS = { b: 1, strong: 1, u: 1, i: 1, em: 1, span: 1, div: 1, p: 1, br: 1, img: 1 };
+// 本文の画像（2026-11-10）: 記録サービスに置いた画像だけ残す（他のサイトの画像は捨てる）
+function fileBase_() { return WORKER_URL.replace(/\/$/, '') + '/f/'; }
+function isOurFile_(src) { return String(src || '').indexOf(fileBase_()) === 0 && /^[^\s"'<>]+$/.test(src); }
 function sanitize_(html) {
   html = String(html || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '');
   return html.replace(/<\/?([a-z0-9]+)([^>]*)>/gi, function (m, tag, attrs) {
     tag = tag.toLowerCase();
     if (!RICH_TAGS[tag]) return '';
+    if (tag === 'img') {
+      var s = /src\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs), src = s ? (s[2] || s[3] || '').replace(/&amp;/g, '&') : '';
+      return m.charAt(1) !== '/' && isOurFile_(src) ? '<img src="' + esc_(src) + '" alt="" style="max-width:100%;height:auto">' : '';
+    }
     if (m.charAt(1) === '/') return '</' + tag + '>';
     if (tag === 'br') return '<br>';
     var st = /style\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs), keep = [];
@@ -1071,7 +1089,7 @@ function sanitize_(html) {
   });
 }
 // 文字だけのもの（旧データ・見本・シートに直接書いたもの）は改行を <br> にして HTML 扱いに
-var RICH_RE = /<(br|div|p|span|b|u|i|strong|em)[\s>\/]/i; // 編集欄が作るタグがあれば HTML とみなす
+var RICH_RE = /<(br|div|p|span|b|u|i|strong|em|img)[\s>\/]/i; // 編集欄が作るタグがあれば HTML とみなす
 function richHtml_(v) {
   v = String(v == null ? '' : v);
   if (!RICH_RE.test(v)) return esc_(v.trim()).replace(/\n/g, '<br>');
@@ -1089,7 +1107,7 @@ function htmlToText_(html) {
 // settings.master_sheet_id = 共有シートのID。見出し名で列を見つける（順番は自由・見出しは変えない）。ID 列はサイトが振る
 var MASTER_SHEET_NAME = '宛先';
 var MASTER_COLS = ['ID', '会社名', '姓', '名', 'メール', '担当者', 'ジャンル', 'タグ', 'メモ', '状態', '最終送信日時'];
-var STATUS_JA = { ok: '送れる', unsub: '配信停止', bounce: '不達' }, STATUS_EN = { '送れる': 'ok', '配信停止': 'unsub', '不達': 'bounce', '': 'ok' };
+var STATUS_JA = { ok: '送れる', unsub: '配信停止', bounce: '不達' }, STATUS_EN = { '送れる': 'ok', '配信停止': 'unsub', '不達': 'bounce', '未開封': 'ok', '': 'ok' }; // 未開封 = 送れる宛先と同じ（2026-11-06）
 function masterIdOf_(v) { v = String(v || '').trim(); var m = v.match(/\/d\/([A-Za-z0-9_-]{4,})/); return m ? m[1] : v; }
 function masterSheet_() {
   var id = masterIdOf_(setting_('master_sheet_id')); if (!id) return null;
@@ -1171,7 +1189,7 @@ function importMaster_(email) {
     var ownerName = cell(row, '担当者'), owner = names[ownerName] || names[ownerName.replace(/[\s\u3000]/g, '')] || '';
     if (ownerName && !owner) out.warnings.push(line + '行目: 担当者「' + ownerName + '」がサイトの登録名にありません（担当なしで取り込み）');
     if (!ownerName) out.warnings.push(line + '行目: 担当者が空です（担当なしで取り込み）');
-    var st = STATUS_EN[cell(row, '状態')]; if (st === undefined) { out.warnings.push(line + '行目: 状態「' + cell(row, '状態') + '」は 送れる／配信停止／不達 のどれかにしてください（送れる として取り込み）'); st = 'ok'; }
+    var st = STATUS_EN[cell(row, '状態')]; if (st === undefined) { out.warnings.push(line + '行目: 状態「' + cell(row, '状態') + '」は 送れる／未開封／配信停止／不達 のどれかにしてください（送れる として取り込み）'); st = 'ok'; }
     var genre = genreNorm_(cell(row, 'ジャンル')), tags = tagsNorm_(cell(row, 'タグ1') || cell(row, 'タグ')), tags2 = tagsNorm_(cell(row, 'タグ2')), note = cell(row, 'メモ');
     seen[id] = true; out.total++;
     var hit = byId[id];
@@ -1216,6 +1234,9 @@ function importMaster_(email) {
       if (nm.length) sh.getRange(2, cols['担当者'], Math.max(sh.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(nm, true).setAllowInvalid(true).setHelpText('担当者の名前（一斉DMサイトの登録名）').build());
     }
   } catch (e) { console.error('担当者の入力規則 ' + e); }
+  try { statusDv_(sh, cols); } catch (e) { console.error('状態の入力規則 ' + e); }
+  // 「未開封」を付けた人があとで開いていたら「送れる」に戻す
+  try { out.unopenedBack = cols['状態'] ? unopenedRevert_(sh, cols) : 0; } catch (e) { console.error('未開封の戻し ' + e); }
   var stamp = now_(); setSetting_('master_synced', stamp); out.synced = stamp;
   return out;
 }
@@ -1299,12 +1320,14 @@ function signatureHtml_(sender, settings) {
 function buildHtml_(camp, rec, sender, token, settings) {
   var links = JSON.parse(camp.links || '[]');
   var base = trackUrl_();
-  function autolink(html) {
-    return html.replace(URL_HTML_RE, function (u) {
-      var n = links.indexOf(u.replace(/&amp;/g, '&'));
-      var href = n < 0 || !token ? u : base + 'c/' + token + '/' + n;
-      return '<a href="' + href + '">' + u + '</a>';
-    });
+  function autolink(html) { // タグの中（画像の src など）の URL は触らない（2026-11-10）
+    return html.split(/(<[^>]*>)/).map(function (part, i) {
+      return i % 2 ? part : part.replace(URL_HTML_RE, function (u) {
+        var n = links.indexOf(u.replace(/&amp;/g, '&'));
+        var href = n < 0 || !token ? u : base + 'c/' + token + '/' + n;
+        return '<a href="' + href + '">' + u + '</a>';
+      });
+    }).join('');
   }
   var body = autolink(merge_(camp.body, rec, sender.name, camp.addrStyle));
   var sig = autolink(merge_(signatureHtml_(sender, settings), rec, sender.name, camp.addrStyle));
@@ -1353,10 +1376,25 @@ function getCampaign(id) {
   var body = c.body; publicCamp_(c, names); c.body = body;
   return c;
 }
+// 本文に入れる画像・資料（PDF）を記録サービスに置く（2026-11-10）。f = {name, type, data(base64)} → {url, name, type, size}
+// 画像は本文にそのまま表示、資料はリンク（押すとクリックとして記録される）。社外公開のドライブは使わない
+var FILE_LIMITS = { 'image/png': 5, 'image/jpeg': 5, 'image/gif': 5, 'image/webp': 5, 'application/pdf': 10 }; // MB
+function uploadDmFile(f) {
+  checkMember_(myEmail_());
+  var type = String(f && f.type || ''), lim = FILE_LIMITS[type];
+  if (!lim) throw new Error('画像（JPG・PNG・GIF）か PDF を選んでください');
+  var data = String(f.data || '').replace(/^data:[^,]*,/, '');
+  var size = Math.floor(data.length * 3 / 4);
+  if (!size) throw new Error('空のファイルです');
+  if (size > lim * 1024 * 1024) throw new Error((type === 'application/pdf' ? 'PDF' : '画像') + 'は ' + lim + 'MB までにしてください');
+  var r = worker_('post', '/api/dm/files', { name: String(f.name || 'file'), type: type, data: data });
+  if (!r || !r.id) throw new Error((r && r.error) || 'ファイルを置けませんでした');
+  return { url: fileBase_() + r.id + '/' + encodeURIComponent(r.name), name: r.name, type: r.type, size: r.size };
+}
 function checkCamp_(f) {
   var subject = String(f.subject || '').trim(), body = richHtml_(f.body);
   if (!subject) throw new Error('件名を入力してください');
-  if (!htmlToText_(body)) throw new Error('本文を入力してください');
+  if (!htmlToText_(body) && !/<img /.test(body)) throw new Error('本文を入力してください');
   if (subject.length > 100) throw new Error('件名は100文字までにしてください');
   return { subject: subject, body: body, addrStyle: addrStyle_(f.addrStyle || member_(myEmail_()).addrStyle) };
 }
@@ -1940,6 +1978,98 @@ function archivedSends_(c) {
   } catch (e) { console.error(e); return []; }
 }
 
+// ---------- 未開封を共有シートに反映（2026-11-06） ----------
+// 配信の結果の画面のボタン: その配信で「送れた」のに開いていない人の、共有シートの「状態」を「未開封」にする（配信停止・不達・手で書いた別の値は変えない）
+// 「未開封」は送れる宛先と同じ扱い（読込で ok）。あとで開いた人は、次に反映したとき・宛先リストの読込のときに「送れる」に戻す（どの配信で付けたかを unopened シートに残す）
+var UNOPENED = '未開封';
+// 共有シートの「状態」のプルダウンを 送れる／未開封／配信停止／不達 にする（1回だけ）。元のひな形は3つ以外を『拒否』する設定なので、未開封を書く前に必ず通す
+// 拒否の設定はそのまま（それ以外の文字は入れられない）
+function statusDv_(sh, cols) {
+  var key = 'v3:' + sh.getParent().getId() + ':' + sh.getSheetId(); // 共有シートを替えたときも入れ直す
+  if (!cols['状態'] || setting_('status_dv') === key) return;
+  sh.getRange(2, cols['状態'], Math.max(sh.getMaxRows() - 1, 1), 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['送れる', UNOPENED, '配信停止', '不達'], true).setAllowInvalid(false).setHelpText('送れる／未開封（送れる）／配信停止／不達').build());
+  setSetting_('status_dv', key);
+}
+function unopenedSheet_() {
+  var sh = sheet_('unopened');
+  if (!sh) { sh = ss_().insertSheet('unopened'); sh.getRange(1, 1, 1, 3).setValues([['recipient_id', 'campaign_id', 'marked_at']]); try { sh.hideSheet(); } catch (e) {} }
+  return sh;
+}
+function unopenedMarks_() { // { 宛先ID: 配信ID }
+  var sh = unopenedSheet_(), n = sh.getLastRow(), out = {};
+  if (n >= 2) sh.getRange(2, 1, n - 1, 2).getValues().forEach(function (r) { if (r[0]) out[String(r[0])] = String(r[1]); });
+  return out;
+}
+function unopenedSave_(marks) {
+  var sh = unopenedSheet_(), n = sh.getLastRow(), t = now_();
+  if (n >= 2) sh.getRange(2, 1, n - 1, 3).clearContent();
+  var rows = Object.keys(marks).map(function (k) { return [k, marks[k], t]; });
+  if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
+}
+// 共有シートの「状態」を書き換える。changes = { 宛先ID: 新しい値 }。いまの値が from に入っているときだけ書く
+function masterStatusSet_(sh, cols, changes, from) {
+  var map = masterIdRows_(sh, cols), n = 0;
+  Object.keys(changes).forEach(function (id) {
+    var row = map[id]; if (!row) return;
+    var cell = sh.getRange(row, cols['状態']), cur = String(cell.getValue() || '').trim();
+    if (from.indexOf(cur) < 0 || cur === changes[id]) return;
+    cell.setValue(changes[id]); n++;
+  });
+  return n;
+}
+// 付けた「未開封」のうち、その配信をあとで開いた人を「送れる」に戻す（読込・反映のときに呼ぶ。記録サービスに繋がらない配信は次回）
+function unopenedRevert_(sh, cols, skipCampaign) {
+  var marks = unopenedMarks_(), byCamp = {}, back = {}, changed = false;
+  Object.keys(marks).forEach(function (rid) { if (marks[rid] !== skipCampaign) (byCamp[marks[rid]] = byCamp[marks[rid]] || []).push(rid); });
+  Object.keys(byCamp).forEach(function (cid) {
+    var hit; try { hit = findCampRow_(cid); } catch (e) { hit = null; }
+    if (!hit) { byCamp[cid].forEach(function (rid) { delete marks[rid]; }); changed = true; return; }
+    var st; try { st = worker_('get', '/api/dm/stats?campaign=' + cid); } catch (e) { console.error(e); return; }
+    var tokOf = {}; (hit.c.archived ? archivedSends_(hit.c) : campSends_(hit.c).rows).forEach(function (r) { tokOf[String(r[1])] = String(r[2]); });
+    byCamp[cid].forEach(function (rid) { if (st.opens && st.opens[tokOf[rid]]) { back[rid] = '送れる'; delete marks[rid]; changed = true; } });
+  });
+  var n = Object.keys(back).length ? masterStatusSet_(sh, cols, back, [UNOPENED]) : 0;
+  if (changed) unopenedSave_(marks);
+  return n;
+}
+function markUnopened(id) {
+  schema_();
+  var email = myEmail_();
+  checkMember_(email);
+  var c = findCampRow_(id).c;
+  if (!canSeeCamp_(c, email)) throw new Error('この配信は見られません');
+  if (c.status === 'draft' || c.status === 'ready') throw new Error('まだ送っていない配信です');
+  var sh = masterSheet_(); if (!sh) throw new Error('共有シートが設定されていません（署名・設定 → 会社の情報）');
+  var st;
+  try { st = worker_('get', '/api/dm/stats?campaign=' + c.id); } catch (e) { throw new Error('開封の記録を読めませんでした（記録サービスに繋がりません）。少し待ってからもう一度押してください'); } // 繋がらないときに全員を未開封にしない
+  var opened = {}, notOpened = {};
+  (c.archived ? archivedSends_(c) : campSends_(c).rows).forEach(function (r) {
+    if (String(r[6]) !== 'sent') return;
+    var rid = String(r[1]); if ((st.opens || {})[String(r[2])]) opened[rid] = true; else notOpened[rid] = true;
+  });
+  Object.keys(opened).forEach(function (rid) { delete notOpened[rid]; });
+  return withLock_(function () {
+    var cols = masterCols_(sh);
+    if (!cols['状態']) throw new Error('共有シートに「状態」の列がありません');
+    statusDv_(sh, cols); // 先にプルダウンへ「未開封」を足す（無いと書き込みが拒否される）
+    var map = masterIdRows_(sh, cols), mark = {}, back = {}, notInSheet = 0;
+    Object.keys(notOpened).forEach(function (rid) { if (map[rid]) mark[rid] = UNOPENED; else notInSheet++; });
+    Object.keys(opened).forEach(function (rid) { back[rid] = '送れる'; });
+    var marked = masterStatusSet_(sh, cols, mark, ['', '送れる']);
+    var already = 0, other = 0, stNow = {};
+    // 付けなかった理由（配信停止・不達など）を数える
+    Object.keys(mark).forEach(function (rid) { var v = String(sh.getRange(map[rid], cols['状態']).getValue() || '').trim(); if (v === UNOPENED) already++; else other++; });
+    var backed = masterStatusSet_(sh, cols, back, [UNOPENED]);
+    var marks = unopenedMarks_();
+    Object.keys(mark).forEach(function (rid) { var v = String(sh.getRange(map[rid], cols['状態']).getValue() || '').trim(); if (v === UNOPENED) marks[rid] = c.id; });
+    Object.keys(opened).forEach(function (rid) { if (marks[rid] === c.id) delete marks[rid]; });
+    unopenedSave_(marks);
+    var backOther = unopenedRevert_(sh, cols, c.id);
+    return { sent: Object.keys(opened).length + Object.keys(notOpened).length, opened: Object.keys(opened).length, notOpened: Object.keys(notOpened).length,
+             marked: marked, unopenedNow: already, skipped: other, notInSheet: notInSheet, backToOk: backed + backOther };
+  });
+}
+
 // 記録サービス（Cloudflare Worker kcreate-dm）の合言葉。wrangler secret put API_TOKEN と同じ値（GitHub・サンプル版には出さない）
 var WORKER_TOKEN = 'test-token';
 </script>
@@ -2228,6 +2358,7 @@ function renderResult() {
   $('rArchived').classList.toggle('hide', !r.archived);
   var stuck = c.status === 'sending' && S.me && c.ownerEmail === S.me.email && r.sends.some(function (x) { return x.status === 'pending'; });
   $('rResume').classList.toggle('hide', !stuck);
+  $('unopenedBtn').classList.toggle('hide', !(c.status === 'sent' || c.status === 'sending') || !s.sent);
   $('r1').innerHTML = s.sent + (s.failed ? '<small style="color:var(--danger)">失敗 ' + s.failed + '</small>' : '');
   $('r2').innerHTML = s.opened + '<small>' + pct(s.opened, s.sent) + '</small>';
   $('r3').innerHTML = s.clicked + '<small>' + pct(s.clicked, s.sent) + '</small>';
@@ -2252,6 +2383,27 @@ $('rFilter').onchange = renderResult;
 $('backBtn').onclick = function () { show('list'); };
 $('rResumeBtn').onclick = resumeResult;
 // 本文は結果の画面には乗せていない（2026-11-03・本文は bodies シート）ので、ここで取る
+// 未開封を共有シートに反映（2026-11-06）: この配信で送れたのに開いていない人の「状態」を「未開封」に。あとで開いた人は次の反映・読込で「送れる」に戻る
+$('unopenedBtn').onclick = function () {
+  var r = S.result, s = r.summary, n = Math.max(0, s.sent - s.opened);
+  modal('<div class="mh"><h3>未開封を共有シートに反映</h3></div><div class="mb">' +
+    '<p style="margin:0 0 10px">この配信で送れた <b>' + s.sent + '</b> 件のうち、まだ開いていない <b>' + n + '</b> 件の、共有シートの「状態」（K列）を <b>「未開封」</b> にします。</p>' +
+    '<ul class="hint" style="margin:0 0 4px;padding-left:1.2em"><li>配信停止・不達の人はそのままです（上書きしません）</li><li>「未開封」の人にも、これまでどおり DM は送れます</li><li>あとで開いた人は、次に反映したとき・宛先リストの「最新を読み込む」のときに「送れる」に戻ります</li><li>開封は画像の読み込みで記録するので、画像を表示しない設定の人は、読んでいても「未開封」になることがあります</li></ul></div>' +
+    '<div class="mf"><button class="btn" data-close>やめる</button><button class="btn primary" id="unYes">反映する</button></div>', function (bg) {
+      bg.querySelector('[data-close]').onclick = function () { bg.remove(); };
+      bg.querySelector('#unYes').onclick = function () {
+        var b = this; b.disabled = true; b.textContent = '反映しています…';
+        call('markUnopened', r.campaign.id).then(function (x) {
+          bg.remove();
+          modal('<div class="mh"><h3>反映しました</h3></div><div class="mb"><p style="margin:0 0 8px">共有シートの「状態」を <b>「未開封」</b> にした宛先：<b>' + x.marked + '</b> 件（いま未開封：' + x.unopenedNow + ' 件）</p>' +
+            '<p class="hint" style="margin:0">送れた ' + x.sent + ' 件・開封 ' + x.opened + ' 件・未開封 ' + x.notOpened + ' 件' +
+            (x.skipped ? '／配信停止・不達などで変えなかった ' + x.skipped + ' 件' : '') + (x.notInSheet ? '／共有シートに無い宛先 ' + x.notInSheet + ' 件' : '') +
+            (x.backToOk ? '／開いたので「送れる」に戻した ' + x.backToOk + ' 件' : '') + '</p></div><div class="mf"><button class="btn primary" data-close>閉じる</button></div>',
+            function (bg2) { bg2.querySelector('[data-close]').onclick = function () { bg2.remove(); }; });
+        }).catch(function (e) { b.disabled = false; b.textContent = '反映する'; fail(e); });
+      };
+    });
+};
 $('copyBtn').onclick = function () { call('getCampaign', S.result.campaign.id).then(function (c) { newCompose(); $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; show('compose'); }).catch(fail); };
 
 // ---------- 書式つき編集欄（本文・署名で共用）----------
@@ -2272,22 +2424,62 @@ function setupEditor(id) {
   tb.querySelectorAll('.hl').forEach(function (b) { b.onclick = function () { exec('hiliteColor', b.dataset.hl || 'transparent'); ed.querySelectorAll('[style*="background-color: transparent"], [style*="background-color: initial"]').forEach(function (x) { x.style.backgroundColor = ''; }); ed.dispatchEvent(new Event('input')); }; });
   tb.querySelector('.tbColor').oninput = function () { exec('foreColor', this.value); };
   tb.querySelectorAll('button.tb').forEach(function (b) { b.onclick = function () { exec(b.dataset.cmd); }; });
+  if (id !== 'sSig') setupFiles(ed, tb);
   tb.querySelectorAll('button').forEach(function (b) { b.onmousedown = function (e) { e.preventDefault(); }; }); // 選択範囲を消さない
   ed.addEventListener('paste', function (e) { e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text')); }); // 貼り付けは文字だけ
+}
+// 本文に画像・資料（PDF）を入れる（2026-11-10）。ファイルは記録サービスに置き、画像は本文に表示・資料はリンク（押すとクリックとして記録）
+var FILE_LIMITS = { 'image/png': 5, 'image/jpeg': 5, 'image/gif': 5, 'image/webp': 5, 'application/pdf': 10 };
+function atLineStart(ed) { // カーソルが行の先頭（または本文が空）か
+  var s = window.getSelection(); if (!s.rangeCount) return true;
+  var rg = s.getRangeAt(0).cloneRange(); rg.setStart(ed, 0);
+  var d = document.createElement('div'); d.appendChild(rg.cloneContents());
+  var last = d.lastChild; while (last && last.lastChild) last = last.lastChild;
+  if (last && last.nodeName === 'IMG') return false;
+  var t = d.innerHTML.replace(/<br\s*\/?>\s*$/i, '\n').replace(/<\/(div|p)>\s*$/i, '\n').replace(/<[^>]+>/g, '');
+  return !t.replace(/&nbsp;/g, ' ').trim() || /\n$/.test(t);
+}
+function setupFiles(ed, tb) {
+  tb.insertAdjacentHTML('beforeend', '<span class="sep"></span><button class="tb tbImg" type="button" title="画像を本文に入れる（JPG・PNG・GIF・5MBまで）">🖼 画像</button><button class="tb tbDoc" type="button" title="PDF資料のリンクを本文に入れる（10MBまで・押した人はクリックとして記録）">📎 資料（PDF）</button><input type="file" class="tbFile" style="display:none">');
+  var input = tb.querySelector('.tbFile'), saved = null, kind = '';
+  function keep() { var s = window.getSelection(); saved = s.rangeCount && ed.contains(s.getRangeAt(0).commonAncestorContainer) ? s.getRangeAt(0).cloneRange() : null; }
+  function pick(k, accept) { keep(); kind = k; input.accept = accept; input.value = ''; input.click(); }
+  tb.querySelector('.tbImg').onclick = function () { pick('img', 'image/png,image/jpeg,image/gif,image/webp'); };
+  tb.querySelector('.tbDoc').onclick = function () { pick('doc', 'application/pdf'); };
+  input.onchange = function () {
+    var f = input.files && input.files[0]; if (!f) return;
+    var lim = FILE_LIMITS[f.type];
+    if (!lim || (kind === 'img') !== (f.type !== 'application/pdf')) return toast(kind === 'img' ? '画像（JPG・PNG・GIF）を選んでください' : 'PDF を選んでください', true);
+    if (f.size > lim * 1024 * 1024) return toast((kind === 'img' ? '画像' : 'PDF') + 'は ' + lim + 'MB までにしてください', true);
+    var rd = new FileReader();
+    rd.onload = function () {
+      toast('アップロード中…（' + f.name + '）');
+      call('uploadDmFile', { name: f.name, type: f.type, data: String(rd.result).replace(/^data:[^,]*,/, '') }).then(function (r) {
+        ed.focus(); var s = window.getSelection();
+        if (saved) { s.removeAllRanges(); s.addRange(saved); } else { var rg = document.createRange(); rg.selectNodeContents(ed); rg.collapse(false); s.removeAllRanges(); s.addRange(rg); }
+        var nl = !atLineStart(ed); // 行の途中なら改行してから入れる
+        if (kind === 'img') document.execCommand('insertHTML', false, (nl ? '<br>' : '') + '<img src="' + esc(r.url) + '" alt="" style="max-width:100%;height:auto"><br>');
+        else document.execCommand('insertText', false, (nl ? '\n' : '') + '【資料】' + r.name + '\n' + r.url + '\n');
+        normalize(ed); ed.dispatchEvent(new Event('input'));
+        toast(kind === 'img' ? '画像を入れました' : '資料のリンクを入れました（押した人はクリックとして記録されます）');
+      }).catch(fail);
+    };
+    rd.readAsDataURL(f);
+  };
 }
 // ブラウザが作る <font> や class を、残す形（span の style）に揃える
 function normalize(ed) {
   ed.querySelectorAll('font').forEach(function (f) { var sp = document.createElement('span'); if (f.color) sp.style.color = f.color; while (f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); });
   ed.querySelectorAll('[class],[id]').forEach(function (x) { if (x !== ed) { x.removeAttribute('class'); x.removeAttribute('id'); } });
 }
-function edHtml(id) { var ed = $(id); normalize(ed); return edText(id) ? ed.innerHTML.replace(/<div><br><\/div>$/, '') : ''; }
+function edHtml(id) { var ed = $(id); normalize(ed); return edText(id) || ed.querySelector('img') ? ed.innerHTML.replace(/<div><br><\/div>$/, '') : ''; }
 function edText(id) { return $(id).innerText.replace(/\u00a0/g, ' ').trim(); }
-function edSet(id, html) { html = html || ''; if (!/<(br|div|p|span|b|u|i|strong|em)[\s>\/]/i.test(html)) html = esc(html).replace(/\n/g, '<br>'); else if (!/<(br|div|p)[\s>\/]/i.test(html)) html = html.replace(/\n/g, '<br>'); $(id).innerHTML = html; }
+function edSet(id, html) { html = html || ''; if (!/<(br|div|p|span|b|u|i|strong|em|img)[\s>\/]/i.test(html)) html = esc(html).replace(/\n/g, '<br>'); else if (!/<(br|div|p)[\s>\/]/i.test(html)) html = html.replace(/\n/g, '<br>'); $(id).innerHTML = html; }
 function edInsert(id, text) { var ed = $(id); ed.focus();
   if (ed.tagName === 'INPUT') { var a = ed.selectionStart == null ? ed.value.length : ed.selectionStart, z = ed.selectionEnd == null ? a : ed.selectionEnd; ed.value = ed.value.slice(0, a) + text + ed.value.slice(z); ed.setSelectionRange(a + text.length, a + text.length); ed.dispatchEvent(new Event('input')); return; }
   document.execCommand('insertText', false, text); ed.dispatchEvent(new Event('input')); }
 var URL_HTML_RE = /https?:\/\/(?:(?!&nbsp;|&lt;|&gt;)[^\s<>"'）){}])+/g;
-function autolinkPv(html) { return html.replace(URL_HTML_RE, function (u) { return '<a href="#" onclick="return false">' + u + '</a>'; }); }
+function autolinkPv(html) { return html.split(/(<[^>]*>)/).map(function (p, i) { return i % 2 ? p : p.replace(URL_HTML_RE, function (u) { return '<a href="#" onclick="return false">' + u + '</a>'; }); }).join(''); } // タグの中（画像の src）は触らない
 function sigHtml(me, st) { return me.signature || [me.name, st.company, st.address, me.email].filter(String).map(esc).join('<br>'); }
 setupEditor('cBody'); setupEditor('sSig'); setupEditor('bBody');
 
