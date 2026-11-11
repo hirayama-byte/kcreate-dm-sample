@@ -290,7 +290,7 @@
 
       <!-- まとめて準備 -->
       <section id="bulk" class="hide">
-        <div class="notice">担当者の代わりに、<b>全員分の配信をまとめて準備</b>します。準備した配信は各担当者の「配信一覧」に <span class="tag ready">送信待ち</span> として並び、<b>担当者本人のアドレス・担当者名・署名</b>で送られます。本人が「自動送信」をオンにしていれば、<b>本人の操作なしで1時間以内に自動送信</b>されます（8〜19時。送ったことは本人にメールで知らせます）。オフの人は、本人が配信一覧の「送信する」を押すまで送られません。送信数も担当者ごとに数えられます。</div>
+        <div class="notice">担当者の代わりに、<b>全員分の配信をまとめて準備</b>します。準備した配信は各担当者の「配信一覧」に <span class="tag ready">送信待ち</span> として並び、<b>担当者本人のアドレス・担当者名・署名</b>で送られます。本人が「自動送信」をオンにしていれば、<b>本人の操作なしで1時間以内に自動送信</b>されます（8〜19時。<b>配信の日時を指定</b>すれば、その時刻に送られます。送ったことは本人にメールで知らせます）。オフの人は、本人が配信一覧の「送信する」を押すまで送られません。送信数も担当者ごとに数えられます。</div>
         <div class="grid2">
           <div>
             <div class="card" style="margin-bottom:18px"><div class="card-h"><h2>件名と本文（全員共通）</h2><span class="sp"></span><select id="bLoad" style="max-width:260px"><option value="">読み込む（下書き・過去の配信）…</option></select></div>
@@ -313,6 +313,10 @@
           <div>
             <div class="card" style="position:sticky;top:76px"><div class="card-h"><h2>届くメールのイメージ</h2><span class="sp"></span><span class="hint">署名は各担当者のものになります</span></div>
               <div class="card-b"><div class="preview" id="bPv"><div class="empty">件名と本文を入れるとここに出ます</div></div>
+                <div class="field" style="margin-top:16px"><label>配信の日時</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="bWhen" style="max-width:240px"><option value="">すぐ（準備のあと1時間以内）</option><option value="at">日時を指定する</option></select>
+                    <span id="bAt" class="hide" style="display:inline-flex;gap:6px;align-items:center"><input type="date" id="bDate" style="width:auto"><select id="bHour" style="width:auto"></select><span class="hint">ごろ</span></span></div>
+                  <div class="hint" id="bWhenHint">自動送信がオンの担当者は、準備のあと1時間以内に本人のアドレスから送られます。</div></div>
                 <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" id="bPrepare" style="height:42px;padding:0 20px" disabled>全員分の配信を準備する</button><span class="hint" id="bHint">先に「対象を確認する」を押してください</span></div>
               </div></div>
           </div>
@@ -604,11 +608,13 @@ var BATCH = 30; // 1回の sendBatch で送る件数（画面が繰り返し呼�
 var REC_HEAD = ['id', 'company', 'name', 'email', 'owner_email', 'status', 'note', 'created', 'updated', 'deleted', 'genre', 'tags', 'sei', 'mei', 'in_master', 'tags2', 'last_sent']; // last_sent（17列目・2026-11-03〜）: 最後に送った日時。sends を毎回全部読まないために宛先に持つ // tags=タグ1, tags2=タグ2（16列目） // in_master=1: 共有シートに載っている（シートから消えたらサイトでも外す対象） // name = 姓 名（表示用）。sei/mei が空の古い行は name を最初の空白で分けて扱う // status: ok / unsub / bounce。genre は genres シートから1つ・tags は自由（「, 」区切り）
 var DEFAULT_GENRES = ['グルメ', 'スクール', 'ショップ', '暮らし', 'トータルケア', 'クリニック', '介護・福祉', '終活・士業', '企業', 'その他'];
 var RECENT_DAYS = 30; // 「直近に送った人を外す」の日数
-var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style', 'deleted', 'sends_start', 'sends_count', 'archived'];
+var CAMP_HEAD = ['id', 'owner_email', 'subject', 'body', 'status', 'created', 'sent_at', 'total', 'sent', 'failed', 'links', 'prepared_by', 'addr_style', 'deleted', 'sends_start', 'sends_count', 'archived', 'send_at'];
 // 2026-11-03〜: body は本文そのものではなく「@b:本文ID」（本文は bodies シート）。deleted=1 は削除済み（行は消さない＝行番号がずれない）。
 // sends_start/sends_count = sends シートでこの配信の行が始まる行番号と行数（毎回全部読まないため）。archived = 送信記録を移したアーカイブのスプレッドシートID
+// send_at（18列目・2026-11-11〜）= まとめて準備の配信予定（'yyyy-MM-dd HH:00'）。自動送信はこの時刻になるまで送らない。空ならすぐ（次の自動送信）
 var BODY_HEAD = ['id', 'body'];
-var SCHEMA_V = '3'; // 3: ID のない空き行に入った本文の印を消す（2026-11-03）
+var SCHEMA_V = '4'; // 4: 配信の send_at 列（2026-11-11）
+// var SCHEMA_V = '3'; // 3: ID のない空き行に入った本文の印を消す（2026-11-03）
 var ADDR_STYLES = ['full', 'surname', 'surname_only']; // 宛名の形: 会社名＋フルネーム / 会社名＋苗字 / 苗字だけ（会社名なし）
 function addrStyle_(v) { return ADDR_STYLES.indexOf(String(v || '')) >= 0 ? String(v) : 'full'; } // status: draft / ready（送信待ち・他の人が準備）/ sending / sent
 var AUTO_HOUR = 9; // （旧）毎朝の時刻。2026-10-31〜は1時間ごと
@@ -750,6 +756,8 @@ function schema_() {
     }
     // ② 配信の列
     if (String(camp.getRange(1, 14).getValue()) !== 'deleted') camp.getRange(1, 1, 1, CAMP_HEAD.length).setValues([CAMP_HEAD]);
+    // ⑤ 配信予定の列（send_at・文字で持つ）
+    if (String(camp.getRange(1, 18).getValue()) !== 'send_at') { camp.getRange(1, 1, 1, CAMP_HEAD.length).setValues([CAMP_HEAD]); camp.getRange(1, 18, Math.max(camp.getMaxRows(), 1), 1).setNumberFormat('@'); }
     // ③ 本文を bodies へ
     var bodies = ss.getSheetByName('bodies') || ensureSheet_(ss, 'bodies', BODY_HEAD);
     var cn = camp.getLastRow();
@@ -1346,7 +1354,7 @@ function buildText_(camp, rec, sender, token, settings) {
 function campObj_(r) {
   return { id: String(r[0]), ownerEmail: String(r[1]).toLowerCase(), subject: String(r[2]), bodyRef: String(r[3] == null ? '' : r[3]), status: String(r[4]) || 'draft',
            created: str_(r[5]), sentAt: str_(r[6]), total: Number(r[7]) || 0, sent: Number(r[8]) || 0, failed: Number(r[9]) || 0, links: String(r[10] || '[]'), preparedBy: String(r[11] || '').toLowerCase(), addrStyle: addrStyle_(r[12]),
-           deleted: String(r[13] || '') === '1', sendsStart: Number(r[14]) || 0, sendsCount: Number(r[15]) || 0, archived: String(r[16] || '') };
+           deleted: String(r[13] || '') === '1', sendsStart: Number(r[14]) || 0, sendsCount: Number(r[15]) || 0, archived: String(r[16] || ''), sendAt: str_(r[17]) };
 }
 // 本文が要るとき（送信・編集画面）だけ bodies から読む
 function withBody_(c) { if (c.body === undefined) c.body = bodyOf_(c.bodyRef); return c; }
@@ -1596,19 +1604,34 @@ function prepareBulk(f) {
   var email = myEmail_();
   checkMember_(email);
   var v = checkCamp_(f), links = JSON.stringify(linksOf_(v.body));
+  var sendAt = checkSendAt_(f.sendAt);
   var targets = bulkTargets_(f);
   if (!targets.length) throw new Error('対象の宛先がありません（タグ・ジャンル・担当者を見直してください）');
   return withLock_(function () {
     var ref = newBody_(v.body), t0 = now_();
     var jobs = targets.map(function (t) { return { c: { id: newCode_(8), links: links }, list: t.recipients, t: t }; });
     var q = queueSends_(jobs), pos = {}; q.forEach(function (x) { pos[x.id] = x; });
-    var rowsOut = jobs.map(function (j) { var p = pos[j.c.id]; return [j.c.id, j.t.email, v.subject, ref, 'ready', t0, '', j.t.count, 0, 0, links, email, v.addrStyle, '', p.start, p.count, '']; });
+    var rowsOut = jobs.map(function (j) { var p = pos[j.c.id]; return [j.c.id, j.t.email, v.subject, ref, 'ready', t0, '', j.t.count, 0, 0, links, email, v.addrStyle, '', p.start, p.count, '', sendAt]; });
     var sh = sheet_('campaigns');
     sh.getRange(sh.getLastRow() + 1, 1, rowsOut.length, CAMP_HEAD.length).setValues(rowsOut);
     bust_('campaigns');
     var made = jobs.map(function (j) { return { campaignId: j.c.id, email: j.t.email, name: j.t.name, count: j.t.count }; });
-    return { made: made, total: made.reduce(function (a, x) { return a + x.count; }, 0) };
+    return { made: made, total: made.reduce(function (a, x) { return a + x.count; }, 0), sendAt: sendAt };
   });
+}
+// 配信予定の時刻: 空ならすぐ。'yyyy-MM-dd HH' か 'yyyy-MM-dd HH:mm' を受けて 'yyyy-MM-dd HH:00' にする。自動送信の時間帯（8〜19時）・今より後・60日以内だけ
+function checkSendAt_(v) {
+  v = String(v || '').trim(); if (!v) return '';
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2})(?::\d{2})?$/.exec(v);
+  if (!m) throw new Error('配信の日時の形が正しくありません');
+  var h = Number(m[4]);
+  if (h < AUTO_FROM || h > AUTO_TO) throw new Error('配信の時刻は ' + AUTO_FROM + '時〜' + AUTO_TO + '時から選んでください');
+  var out = m[1] + '-' + m[2] + '-' + m[3] + ' ' + (h < 10 ? '0' : '') + h + ':00';
+  var cur = now_().slice(0, 13) + ':00'; // 今の「時」
+  if (out < cur) throw new Error('配信の日時が過ぎています（' + out + '）');
+  var limit = Utilities.formatDate(new Date(Date.now() + 60 * 86400000), TZ, 'yyyy-MM-dd') + ' 23:59';
+  if (out > limit) throw new Error('配信の日時は60日以内にしてください');
+  return out;
 }
 // 送信待ちを本人が送り始める（あとは sendBatch を画面が繰り返す）
 function startReady(id) {
@@ -1637,7 +1660,8 @@ function autoSendTick() {
   schema_();
   var t0 = nowMs_(), out = [];
   var camps = listCampaigns(), byId = {}; camps.forEach(function (c) { byId[c.id] = c; });
-  camps.filter(function (c) { return (c.status === 'ready' || c.status === 'sending') && c.ownerEmail === email; }).reverse().forEach(function (c) {
+  var cur = now_();
+  camps.filter(function (c) { return (c.status === 'ready' || c.status === 'sending') && c.ownerEmail === email && !(c.status === 'ready' && c.sendAt && c.sendAt > cur); }).reverse().forEach(function (c) { // 配信予定がまだ先の送信待ちは送らない
     if (nowMs_() - t0 > AUTO_BUDGET_MS) return;
     try {
       if (c.status === 'ready') startReady(c.id);
@@ -2296,7 +2320,7 @@ function renderList() {
     var canDel = (x.ownerEmail === S.me.email || S.me.isAdmin || (x.status === 'ready' && x.preparedBy === S.me.email)) && x.status !== 'sending';
     return '<tr class="row" data-id="' + esc(x.id) + '" data-st="' + x.status + '"><td><input type="checkbox" class="lck" data-id="' + esc(x.id) + '"' + (S.listSel[x.id] ? ' checked' : '') + (canDel ? '' : ' disabled') + ' style="height:auto"></td><td class="mono" style="white-space:nowrap;color:var(--muted);font-size:12px">' + esc(fmtD(d ? x.created : x.sentAt)) + '</td>' +
       '<td><div class="nm">' + esc(subjOf(x)) + '</div></td><td class="' + (S.me.isAdmin ? '' : 'hide') + '">' + esc(x.ownerName) + '</td>' +
-      '<td><span class="tag ' + x.status + '">' + ST[x.status] + '</span>' + (x.status === 'ready' ? '<div class="sub">' + esc(x.preparedByName || '') + ' さんが準備・' + x.total + ' 件</div>' : '') + '</td>' +
+      '<td><span class="tag ' + x.status + '">' + ST[x.status] + '</span>' + (x.status === 'ready' ? '<div class="sub">' + esc(x.preparedByName || '') + ' さんが準備・' + x.total + ' 件' + (x.sendAt ? '<br>' + esc(fmtSendAt(x.sendAt)) + 'に配信予定' : '') + '</div>' : '') + '</td>' +
       '<td class="num">' + (d ? '−' : x.sent + (x.failed ? '<span class="pct" style="color:var(--danger)">失敗' + x.failed + '</span>' : '')) + '</td>' +
       '<td class="num">' + (d || x.opened == null ? '−' : x.opened + '<span class="pct">' + pct(x.opened, x.sent) + '</span>') + '</td>' +
       '<td class="num">' + (d || x.clicked == null ? '−' : x.clicked + '<span class="pct">' + pct(x.clicked, x.sent) + '</span>') + '</td>' +
@@ -2633,11 +2657,11 @@ function readyModal(id) {
     var body = autolinkPv(mergeLocal(c.body, rec, mine ? S.me.name : c.ownerName, c.addrStyle));
     modal('<div class="mh"><h3>送信待ちの配信</h3><span class="sp"></span><span class="tag ready">送信待ち</span></div><div class="mb">' +
       '<p style="margin:0 0 10px"><b>' + esc(subjOf(c)) + '</b></p>' +
-      '<p class="hint" style="margin:0 0 12px">' + esc(c.preparedByName || c.preparedBy) + ' さんが準備　→　差出人: <b>' + esc(c.ownerName) + '</b>（' + esc(c.ownerEmail) + '）　宛先 ' + c.total + ' 件</p>' +
+      '<p class="hint" style="margin:0 0 12px">' + esc(c.preparedByName || c.preparedBy) + ' さんが準備　→　差出人: <b>' + esc(c.ownerName) + '</b>（' + esc(c.ownerEmail) + '）　宛先 ' + c.total + ' 件' + (c.sendAt ? '<br>配信予定: <b>' + esc(fmtSendAt(c.sendAt)) + '</b>（担当者の自動送信がオンなら、この時刻に自動で送られます）' : '') + '</p>' +
       '<div class="preview" style="min-height:0;max-height:260px;overflow:auto"><div style="line-height:1.5;padding:8px 0">' + body + '<br><br>--<br><span class="hint">（' + esc(c.ownerName) + ' さんの署名）</span></div></div>' +
       (mine ? '<p class="hint" style="margin:12px 0 0">「送信する」を押すと、あなたのアドレスから ' + c.total + ' 件に送ります（今日あと ' + S.quota + ' 通）。</p>' : '<p class="hint" style="margin:12px 0 0">送信は担当者本人だけができます。</p>') +
       '<div id="prog" class="hide" style="margin-top:14px"><div class="progress"><i id="progBar" style="width:0"></i></div><div class="hint" id="progTxt" style="margin-top:6px">送信中…</div></div></div>' +
-      '<div class="mf">' + (canDel ? '<button class="btn danger" id="rdDel">削除（送らない）</button>' : '') + '<span class="sp" style="flex:1"></span><button class="btn" data-close>閉じる</button>' + (mine ? '<button class="btn primary" id="rdSend">送信する</button>' : '') + '</div>', function (bg) {
+      '<div class="mf">' + (canDel ? '<button class="btn danger" id="rdDel">削除（送らない）</button>' : '') + '<span class="sp" style="flex:1"></span><button class="btn" data-close>閉じる</button>' + (mine ? '<button class="btn primary" id="rdSend">' + (c.sendAt ? '今すぐ送信する' : '送信する') + '</button>' : '') + '</div>', function (bg) {
       bg.querySelector('[data-close]').onclick = function () { bg.remove(); };
       var del = bg.querySelector('#rdDel'); if (del) del.onclick = function () { if (!confirm('この送信待ちの配信を削除しますか？（メールは送られません）')) return; call('deleteCampaign', c.id).then(function () { toast('削除しました'); bg.remove(); loadList(); }).catch(fail); };
       var go = bg.querySelector('#rdSend'); if (go) go.onclick = function () {
@@ -2654,7 +2678,26 @@ function readyModal(id) {
 // ---------- まとめて準備 ----------
 var B = { checked: false, targets: [] };
 function bulkFilter() { return { tag: $('bTag').value, genre: $('bGenre').value, excludeRecent: $('bRecent').checked, owners: [].map.call(document.querySelectorAll('#bOwners input:checked'), function (c) { return c.value; }) }; }
+// 配信の日時（自動送信は1時間ごとに動くので「○時ごろ」・8〜19時）
+function fmtSendAt(v) {
+  var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2})/.exec(v || ''); if (!m) return v || '';
+  var d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return (+m[2]) + '/' + (+m[3]) + '（' + '日月火水木金土'[d.getDay()] + '）' + (+m[4]) + '時ごろ';
+}
+function bulkSendAt() { if ($('bWhen').value !== 'at' || !$('bDate').value) return ''; return $('bDate').value + ' ' + $('bHour').value + ':00'; }
+function bulkWhenUi() {
+  var at = $('bWhen').value === 'at';
+  $('bAt').classList.toggle('hide', !at);
+  if (!$('bHour').options.length) { var h = ''; for (var i = 8; i <= 19; i++) h += '<option value="' + (i < 10 ? '0' : '') + i + '"' + (i === 9 ? ' selected' : '') + '>' + i + '時</option>'; $('bHour').innerHTML = h; }
+  if (at && !$('bDate').value) { var t = new Date(Date.now() + 86400000); $('bDate').value = t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
+  var v = bulkSendAt(), hh = v ? +v.slice(11, 13) : 0;
+  $('bWhenHint').textContent = !at ? '自動送信がオンの担当者は、準備のあと1時間以内に本人のアドレスから送られます。'
+    : !v ? '日付を選んでください'
+    : fmtSendAt(v) + '（' + hh + ':00〜' + hh + ':59 の間）に、自動送信がオンの担当者のアドレスから送られます。オフの人は、本人が「送信する」を押したときに送られます。';
+}
+['bWhen', 'bDate', 'bHour'].forEach(function (id) { $(id).addEventListener('change', bulkWhenUi); });
 function renderBulk() {
+  bulkWhenUi();
   $('bRecentDays').textContent = S.recentDays;
   fillTagSel($('bTag'), ((S.recInfo && S.recInfo.tags) || []).map(function (t) { return { tags: t }; })); var dash = $('bTag').querySelector('option[value="-"]'); if (dash) dash.remove();
   $('bGenre').innerHTML = '<option value="">ジャンル: すべて</option>' + S.genres.map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + '</option>'; }).join('');
@@ -2691,11 +2734,14 @@ $('bPrepare').onclick = function () {
   var sub = $('bSubject').value.trim(), body = edHtml('bBody');
   if (!sub || !body) { toast('件名と本文を入れてください', true); return; }
   var total = B.targets.reduce(function (a, x) { return a + x.count; }, 0);
-  if (!confirm(B.targets.length + ' 人の担当者に、合計 ' + total + ' 件の配信を「送信待ち」として準備します。よろしいですか？\n（この時点ではまだメールは送られません）')) return;
+  var sendAt = bulkSendAt();
+  if ($('bWhen').value === 'at' && !sendAt) { toast('配信の日付を選んでください', true); return; }
+  if (!confirm(B.targets.length + ' 人の担当者に、合計 ' + total + ' 件の配信を「送信待ち」として準備します。よろしいですか？\n配信: ' + (sendAt ? fmtSendAt(sendAt) : 'すぐ（1時間以内）') + '\n（この時点ではまだメールは送られません）')) return;
   $('bPrepare').disabled = true;
-  var f = bulkFilter(); f.subject = sub; f.body = body; f.addrStyle = $('bAddr').value;
+  var f = bulkFilter(); f.subject = sub; f.body = body; f.addrStyle = $('bAddr').value; f.sendAt = sendAt;
   call('prepareBulk', f).then(function (r) {
-    toast(r.made.length + ' 人分（' + r.total + ' 件）の配信を準備しました');
+    toast(r.made.length + ' 人分（' + r.total + ' 件）の配信を準備しました' + (r.sendAt ? '（' + fmtSendAt(r.sendAt) + 'に配信）' : ''));
+    $('bWhen').value = ''; bulkWhenUi();
     $('bSubject').value = ''; edSet('bBody', S.settings.sample_body || ''); $('bTargets').innerHTML = ''; B = { checked: false, targets: [] }; $('bHint').textContent = '先に「対象を確認する」を押してください'; renderBulkPv();
     show('list');
   }).catch(function (e) { fail(e); $('bPrepare').disabled = false; });
