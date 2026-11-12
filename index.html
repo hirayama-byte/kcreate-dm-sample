@@ -98,6 +98,7 @@
   input[type=text], input[type=email] { min-width: 0; width: 100%; }
   #cAddr, #bAddr, #sAddr { width: 100%; max-width: 100%; } /* 宛名の形（選択肢の文字が長いので幅いっぱいに収める） */
   button.btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
+  button.btn.mailBtn { height: 28px; padding: 0 10px; font-size: 12.5px; } /* 配信一覧の「内容」 */
   button.btn:hover { background: #f8fafc; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.primary:hover { background: #0f766e; }
@@ -232,14 +233,14 @@
           <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="listQ" type="text" placeholder="件名で探す"></div>
             <select id="listOwner" class="hide"><option value="">担当: 全員</option></select>
             <span class="count" id="listCount"></span><button class="btn hide" id="listClick" title="選んだ配信でリンクを押した人を、送った人ごとにスプレッドシートへ書き出します">クリックした人を書き出す</button><button class="btn danger hide" id="listDel">選択を削除</button><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
-          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="listAllCk" style="height:auto" title="表示中を全部選ぶ"></th><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th></tr></thead><tbody id="listBody"></tbody></table></div>
+          <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="listAllCk" style="height:auto" title="表示中を全部選ぶ"></th><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th><th style="width:64px"></th></tr></thead><tbody id="listBody"></tbody></table></div>
           <div class="empty hide" id="listEmpty">まだ配信がありません。「＋ 新しい配信」から作れます</div>
         </div>
       </section>
 
       <!-- 配信の結果 -->
       <section id="result" class="hide">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="backBtn">← 配信一覧</button><h2 style="margin:0;font-size:16px" id="rTitle"></h2><span class="sp" style="flex:1"></span><button class="btn" id="unopenedBtn" title="この配信を開いていない人の、共有シートの「状態」を「未開封」にします">未開封を共有シートに反映</button><button class="btn" id="copyBtn">コピーして新しく作る</button></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="backBtn">← 配信一覧</button><h2 style="margin:0;font-size:16px" id="rTitle"></h2><span class="sp" style="flex:1"></span><button class="btn" id="rMailBtn" title="配信したメールの内容（件名・本文・署名）を見る">メール内容を見る</button><button class="btn" id="unopenedBtn" title="この配信を開いていない人の、共有シートの「状態」を「未開封」にします">未開封を共有シートに反映</button><button class="btn" id="copyBtn">コピーして新しく作る</button></div>
         <div class="notice hide" id="rArchived">古い配信なので、送信記録は保管用のファイル（アーカイブ）から表示しています</div>
         <div class="notice hide" id="rResume" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">この配信はまだ全員に送り終わっていません（今日の上限で止まった・途中で画面を閉じた など）<button class="btn primary" id="rResumeBtn">続きを送る</button></div>
         <div class="notice hide" id="rOffline">記録サービスにつながらないため、開封・クリックは表示できません。あとで開き直してください</div>
@@ -1478,6 +1479,20 @@ function previewCampaign(f, rec) {
   var r = rec || { company: '株式会社サンプル', name: '山田 太郎' };
   return { subject: merge_(camp.subject, r, member_(email).name, v.addrStyle), html: buildHtml_(camp, r, member_(email), 'preview0000', settings_()), links: linksOf_(v.body) };
 }
+// 配信したメールの内容（配信一覧の「内容」・2026-11-12）。差し込みは見本の宛先、差出人・署名は担当者本人（署名は今の設定）
+// 記録用の印（開封・クリック・配信停止）は付けない
+function viewCampaignMail(id) {
+  schema_();
+  var email = myEmail_();
+  var c = withBody_(findCampRow_(id).c);
+  if (!canSeeCamp_(c, email)) throw new Error('この配信は見られません');
+  var owner = member_(c.ownerEmail), r = { company: '株式会社サンプル', name: '山田 太郎' };
+  var camp = { subject: c.subject, body: c.body, links: c.links || '[]', addrStyle: c.addrStyle };
+  return {
+    subject: merge_(c.subject, r, owner.name, c.addrStyle), html: buildHtml_(camp, r, owner, '', settings_()),
+    status: c.status, sentAt: c.sentAt || '', created: c.created || '', ownerName: owner.name, ownerEmail: c.ownerEmail, total: c.total || 0
+  };
+}
 // 自分あてにテスト送信（記録はしない）
 function sendTest(f) {
   var email = myEmail_();
@@ -2324,10 +2339,11 @@ function renderList() {
       '<td class="num">' + (d ? '−' : x.sent + (x.failed ? '<span class="pct" style="color:var(--danger)">失敗' + x.failed + '</span>' : '')) + '</td>' +
       '<td class="num">' + (d || x.opened == null ? '−' : x.opened + '<span class="pct">' + pct(x.opened, x.sent) + '</span>') + '</td>' +
       '<td class="num">' + (d || x.clicked == null ? '−' : x.clicked + '<span class="pct">' + pct(x.clicked, x.sent) + '</span>') + '</td>' +
-      '<td class="num">' + (d ? '−' : x.unsub || 0) + '</td></tr>';
+      '<td class="num">' + (d ? '−' : x.unsub || 0) + '</td>' +
+      '<td>' + (x.status === 'draft' ? '' : '<button class="btn sm mailBtn" data-mail="' + esc(x.id) + '" title="配信したメールの内容（件名・本文・署名）を見る">内容</button>') + '</td></tr>';
   }).join('');
   document.querySelectorAll('#listBody tr').forEach(function (tr) {
-    tr.onclick = function (e) { if (e.target.closest('input')) return; if (tr.dataset.st === 'draft') openCompose(tr.dataset.id); else if (tr.dataset.st === 'ready') readyModal(tr.dataset.id); else openResult(tr.dataset.id); };
+    tr.onclick = function (e) { if (e.target.closest('input')) return; var mb = e.target.closest('[data-mail]'); if (mb) { mailModal(mb.dataset.mail); return; } if (tr.dataset.st === 'draft') openCompose(tr.dataset.id); else if (tr.dataset.st === 'ready') readyModal(tr.dataset.id); else openResult(tr.dataset.id); };
   });
   document.querySelectorAll('#listBody .lck').forEach(function (ck) { ck.onchange = function () { if (ck.checked) S.listSel[ck.dataset.id] = true; else delete S.listSel[ck.dataset.id]; updateListSel(); }; });
   updateListSel();
@@ -2428,6 +2444,25 @@ $('unopenedBtn').onclick = function () {
       };
     });
 };
+$('rMailBtn').onclick = function () { if (S.result) mailModal(S.result.campaign.id); };
+// 配信したメールの内容（2026-11-12）: 差し込みは見本の宛先・差出人と署名は担当者本人（署名は今の設定）
+function mailModal(id) {
+  call('viewCampaignMail', id).then(function (m) {
+    var ST = { ready: '送信待ち', sending: '送信中', sent: '送信済み' };
+    var when = m.status === 'ready' ? '準備 ' + fmtD(m.created) : '送信 ' + fmtD(m.sentAt);
+    var doc = '<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>body{margin:12px 14px;background:#fff}img{max-width:100%;height:auto}</style></head><body>' + m.html + '</' + 'body></' + 'html>'; // 閉じタグを分ける（サンプル版の帯が最初の閉じタグの前に入るため）
+    modal('<div class="mh"><h3>メールの内容</h3><span class="sp"></span><span class="tag ' + esc(m.status) + '">' + (ST[m.status] || '') + '</span></div><div class="mb">' +
+      '<table class="mailHead" style="width:100%;font-size:13px;margin:0 0 10px;border-collapse:collapse"><tr><th style="text-align:left;width:56px;color:var(--muted);font-weight:500;padding:3px 0">件名</th><td style="padding:3px 0"><b id="mvSubj"></b></td></tr>' +
+      '<tr><th style="text-align:left;color:var(--muted);font-weight:500;padding:3px 0">差出人</th><td style="padding:3px 0">' + esc(m.ownerName) + '（' + esc(m.ownerEmail) + '）</td></tr>' +
+      '<tr><th style="text-align:left;color:var(--muted);font-weight:500;padding:3px 0">日時</th><td style="padding:3px 0">' + esc(when) + '　宛先 ' + m.total + ' 件</td></tr></table>' +
+      '<iframe id="mvFrame" sandbox="allow-popups allow-popups-to-escape-sandbox" style="width:100%;height:420px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>' +
+      '<p class="hint" style="margin:8px 0 0">{会社名}{氏名}様 などの差し込みは、見本の宛先「株式会社サンプル 山田 太郎様」で表示しています。署名は担当者の今の設定です（配信停止の案内は実際のメールにだけ付きます）。</p></div>' +
+      '<div class="mf"><span class="sp" style="flex:1"></span><button class="btn" data-close>閉じる</button></div>', function (bg) {
+      bg.querySelector('#mvSubj').textContent = m.subject; bg.querySelector('#mvFrame').srcdoc = doc;
+      bg.querySelector('[data-close]').onclick = function () { bg.remove(); };
+    });
+  }).catch(fail);
+}
 $('copyBtn').onclick = function () { call('getCampaign', S.result.campaign.id).then(function (c) { newCompose(); $('cSubject').value = c.subject; edSet('cBody', c.body); $('cAddr').value = c.addrStyle || 'full'; show('compose'); }).catch(fail); };
 
 // ---------- 書式つき編集欄（本文・署名で共用）----------
