@@ -2454,7 +2454,7 @@ $('listDel').onclick = function () {
   var ids = Object.keys(S.listSel); if (!ids.length) return;
   var sentN = S.camps.filter(function (c) { return ids.indexOf(c.id) >= 0 && c.status === 'sent'; }).length;
   if (!confirm(ids.length + ' 件の配信を削除しますか？' + (sentN ? '\n（送信済み ' + sentN + ' 件を含みます。削除すると、その配信の送信・開封・クリックの記録は見られなくなります。送ったメールは取り消せません）' : ''))) return;
-  call('deleteCampaigns', ids).then(function (r) { toast(r.deleted + ' 件削除しました'); S.listSel = {}; $('listAllCk').checked = false; return loadList(); }).catch(fail);
+  call('deleteCampaigns', ids).then(function (r) { toast(r.deleted + ' 件削除しました'); if (S.compose && S.compose.id && ids.indexOf(S.compose.id) >= 0) newCompose(); /* 開いていた下書きを消したら「新しい配信」も空に（2026-11-18「配信が見つかりません」） */ S.listSel = {}; $('listAllCk').checked = false; return loadList(); }).catch(fail);
 };
 $('listQ').oninput = renderList; $('listOwner').onchange = function () { savePrefs(); renderList(); renderKpis(); };
 $('listPeriod').onchange = function () { $('periodCustom').classList.toggle('hide', $('listPeriod').value !== 'custom'); savePrefs(); renderList(); renderKpis(); };
@@ -2757,7 +2757,10 @@ $('pickQ').oninput = renderPick; $('pickGenre').onchange = $('pickTag').onchange
 $('pickRecent').onchange = function () { if ($('pickRecent').checked) pickable().forEach(function (r) { if (isRecent(r)) delete S.compose.sel[r.id]; }); renderPick(); }; // 外すときは選択からも外す
 $('pickAll').onclick = function () { document.querySelectorAll('#pick input').forEach(function (ck) { S.compose.sel[ck.dataset.id] = true; }); renderPick(); };
 $('pickNone').onclick = function () { S.compose.sel = {}; renderPick(); };
-function saveDraft() { return call('saveCampaign', S.compose.id || null, compVals()).then(function (c) { S.compose.id = c.id; $('cTitle').textContent = '下書きの続き'; $('delDraftBtn').classList.remove('hide'); return c; }); }
+function saveDraft() { return call('saveCampaign', S.compose.id || null, compVals()).catch(function (e) { // 下書きがほかの画面で消されていたら、新しい下書きとして保存し直す（2026-11-18）
+    if (S.compose.id && /配信が見つかりません/.test(e && e.message || '')) { S.compose.id = ''; return call('saveCampaign', null, compVals()); }
+    throw e;
+  }).then(function (c) { S.compose.id = c.id; $('cTitle').textContent = '下書きの続き'; $('delDraftBtn').classList.remove('hide'); return c; }); }
 $('saveBtn').onclick = function () { saveDraft().then(function () { toast('下書きを保存しました'); }).catch(fail); };
 $('testBtn').onclick = function () { $('testBtn').disabled = true; call('sendTest', compVals()).then(function (r) { toast('自分あて（' + r.to + '）にテスト送信しました'); if (r.quota != null) { S.quota = r.quota; $('quota').textContent = r.quota; updatePickCount(); } }).catch(fail).then(function () { $('testBtn').disabled = false; }); };
 $('delDraftBtn').onclick = function () { if (!S.compose.id || !confirm('この下書きを削除しますか？')) return; call('deleteCampaign', S.compose.id).then(function () { toast('削除しました'); newCompose(); show('list'); }).catch(fail); };
