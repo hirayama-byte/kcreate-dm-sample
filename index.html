@@ -55,6 +55,7 @@
     .main:has(#list:not(.hide)) > main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 24px; }
     #list:not(.hide) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #list .kpis { flex: none; }
+    #list #kpiNote { flex: none; }
     #list > .card { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
     #list .tbl { flex: 0 1 auto; min-height: 0; overflow: auto; }
     #list thead th { z-index: 1; }
@@ -117,6 +118,13 @@
   .kpi .v small { font-size: 12px; color: var(--faint); margin-left: 4px; font-family: "Noto Sans JP", sans-serif; }
   .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
   .bar .sp { flex: 1; }
+  .period { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .period input[type=date] { height: 34px; padding: 0 6px; }
+  #kpiNote { font-size: 12px; color: var(--muted); margin: -8px 0 12px; }
+  #ownerStats td.num b { font-weight: 600; }
+  #ownerStats tbody tr[data-ow] { cursor: pointer; }
+  #ownerStats tbody tr[data-ow]:hover { background: rgba(0,0,0,.03); }
+  #ownerStats tfoot td { font-weight: 600; border-top: 2px solid var(--line); }
   .search { position: relative; flex: 1; min-width: 180px; }
   .search svg { position: absolute; left: 11px; top: 10px; width: 16px; height: 16px; color: var(--faint); }
   .search input { width: 100%; padding-left: 34px; }
@@ -224,14 +232,16 @@
       <!-- 配信一覧 -->
       <section id="list">
         <div class="kpis">
-          <div class="card kpi"><div class="l"><i style="background:#14b8a6"></i>今月の送信</div><div class="v" id="k1">0<small>通</small></div></div>
-          <div class="card kpi"><div class="l"><i style="background:#0ea5e9"></i>開封率（送信済み平均）</div><div class="v" id="k2">−</div></div>
-          <div class="card kpi"><div class="l"><i style="background:#6366f1"></i>クリック率（送信済み平均）</div><div class="v" id="k3">−</div></div>
-          <div class="card kpi"><div class="l"><i style="background:#f59e0b"></i>配信停止（累計）</div><div class="v" id="k4">0<small>件</small></div></div>
+          <div class="card kpi"><div class="l"><i style="background:#14b8a6"></i>送信</div><div class="v" id="k1">0<small>通</small></div></div>
+          <div class="card kpi"><div class="l"><i style="background:#0ea5e9"></i>開封</div><div class="v" id="k2">−</div></div>
+          <div class="card kpi"><div class="l"><i style="background:#6366f1"></i>クリック</div><div class="v" id="k3">−</div></div>
+          <div class="card kpi"><div class="l"><i style="background:#f59e0b"></i>配信停止</div><div class="v" id="k4">0<small>件</small></div></div>
         </div>
+        <div id="kpiNote"></div>
         <div class="card">
           <div class="bar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="listQ" type="text" placeholder="件名で探す"></div>
             <select id="listOwner" class="hide"><option value="">担当: 全員</option></select>
+            <span class="period"><select id="listPeriod"><option value="all">期間: すべて</option><option value="m0">今月</option><option value="m1">先月</option><option value="d30">直近30日</option><option value="d90">直近90日</option><option value="y0">今年</option><option value="custom">期間を指定…</option></select><span id="periodCustom" class="period hide"><input type="date" id="pFrom"> 〜 <input type="date" id="pTo"></span></span>
             <span class="count" id="listCount"></span><button class="btn hide" id="listClick" title="選んだ配信でリンクを押した人を、送った人ごとにスプレッドシートへ書き出します">クリックした人を書き出す</button><button class="btn danger hide" id="listDel">選択を削除</button><button class="btn primary" id="newBtn">＋ 新しい配信</button></div>
           <div class="tbl"><table><thead><tr><th style="width:36px"><input type="checkbox" id="listAllCk" style="height:auto" title="表示中を全部選ぶ"></th><th>送信日</th><th>件名</th><th id="thOwner" class="hide">担当</th><th>状態</th><th class="num">送信</th><th class="num">開封</th><th class="num">クリック</th><th class="num">停止</th><th style="width:64px"></th></tr></thead><tbody id="listBody"></tbody></table></div>
           <div class="empty hide" id="listEmpty">まだ配信がありません。「＋ 新しい配信」から作れます</div>
@@ -283,7 +293,12 @@
           <div>
             <div class="card" style="position:sticky;top:76px"><div class="card-h"><h2>届くメールのプレビュー</h2><span class="sp"></span><select id="pvRec" style="max-width:220px"><option value="">見本の宛先</option></select></div>
               <div class="card-b"><div class="preview" id="pv"><div class="empty">件名と本文を入れるとここに出ます</div></div>
-                <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" id="sendBtn" style="height:42px;padding:0 20px">選んだ宛先に送信する</button><span class="hint" id="sendHint"></span></div>
+                <div class="field" style="margin-top:16px"><label>配信の日時</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="cWhen" style="max-width:240px"><option value="">すぐ送る</option><option value="at">日時を指定する</option></select>
+                    <span id="cAt" class="hide" style="display:inline-flex;gap:6px;align-items:center"><input type="date" id="cDate" style="width:auto"><select id="cHour" style="width:auto"></select><span class="hint">ごろ</span></span></div>
+                  <div class="hint" id="cWhenHint">「送信する」を押すと、すぐにあなたのアドレスから送ります。</div></div>
+                <div style="margin-top:12px"><button class="btn" id="cCheck">対象を確認する</button><div id="cTargets" style="margin-top:10px"></div></div>
+                <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" id="sendBtn" style="height:42px;padding:0 20px" disabled>選んだ宛先に送信する</button><span class="hint" id="sendHint"></span></div>
               </div></div>
           </div>
         </div>
@@ -1561,6 +1576,43 @@ function startSend(id, recipientIds) {
     return { total: q[0].count };
   });
 }
+// 新しい配信を日時指定で送る（2026-11-18）: 宛先を並べて「送信待ち」にし、send_at になったら本人の自動送信が送る（まとめて準備と同じしくみ）
+// 自動送信がオンでないと送られないので、オフなら断る（画面が先にオンにする）
+function scheduleSend(id, recipientIds, sendAtIn) {
+  schema_();
+  var email = myEmail_();
+  checkMember_(email);
+  var sendAt = checkSendAt_(sendAtIn);
+  if (!sendAt) throw new Error('配信の日時を選んでください');
+  if (!member_(email).autoSend) throw new Error('日時を指定して送るには、自動送信をオンにしてください');
+  if (!Array.isArray(recipientIds) || !recipientIds.length) throw new Error('宛先を選んでください');
+  syncUnsubs_();
+  return withLock_(function () {
+    memo_ = {};
+    var hit = findCampRow_(id), c = hit.c;
+    if (c.ownerEmail !== email) throw new Error('他の人の配信は送れません');
+    if (c.status !== 'draft') throw new Error('この配信はもう送信を始めています');
+    var recs = {}, ids = {};
+    rows_('recipients').forEach(function (r) { if (!r[9]) recs[String(r[0])] = recObj_(r); });
+    var list = [];
+    recipientIds.forEach(function (rid) {
+      var r = recs[rid];
+      if (!r || r.ownerEmail !== email) throw new Error('選べない宛先が含まれています');
+      if (r.status !== 'ok' || ids[r.email]) return;
+      ids[r.email] = true;
+      list.push(r);
+    });
+    if (!list.length) throw new Error('送れる宛先がありません（配信停止・不達は除いています）');
+    var q = queueSends_([{ c: c, list: list }]), sh = sheet_('campaigns');
+    sh.getRange(hit.row, 5).setValue('ready');
+    sh.getRange(hit.row, 8).setValue(q[0].count);
+    sh.getRange(hit.row, 12).setValue(email);
+    sh.getRange(hit.row, 15, 1, 2).setValues([[q[0].start, q[0].count]]);
+    sh.getRange(hit.row, 18).setNumberFormat('@').setValue(sendAt);
+    bust_('campaigns');
+    return { total: q[0].count, sendAt: sendAt };
+  });
+}
 // 宛先を sends に並べ、記録サービスにリンクとトークン（と宛先ID）を登録する。jobs = [{c, list}]。ロックの中で呼ぶ
 // トークンは31文字×10桁（約8×10^14 通り）なので、全行を読んでの重複確認はしない（同じ呼び出しの中だけ確かめる）
 function queueSends_(jobs) {
@@ -2288,7 +2340,8 @@ function boot() {
     else { $('meName').textContent = '名前を登録'; $('meAv').textContent = '?'; }
     $('listOwner').classList.toggle('hide', !r.me.isAdmin); $('thOwner').classList.toggle('hide', !r.me.isAdmin);
     $('adminCard').classList.toggle('hide', !r.me.isAdmin);
-    [$('listOwner')].forEach(function (sel) { sel.innerHTML = '<option value="">担当: 全員</option>' + r.members.map(function (m) { return '<option value="' + esc(m.email) + '">' + esc(m.name) + '</option>'; }).join(''); });
+    [$('listOwner')].forEach(function (sel) { var cur = sel.value; sel.innerHTML = '<option value="">担当: 全員</option>' + r.members.map(function (m) { return '<option value="' + esc(m.email) + '">' + esc(m.name) + '</option>'; }).join(''); sel.value = cur; });
+    if (!S.prefsLoaded) { S.prefsLoaded = true; loadPrefs(); }
     if (!r.me.name) nameModal(true);
     show(booted ? S.tab : 'list'); booted = true; // 2回目以降（署名の保存など）は今のタブのまま
   }).catch(fail);
@@ -2313,20 +2366,48 @@ function nameModal(first) {
 function loadList() {
   return call('listCampaignSummaries').then(function (list) { S.camps = list; renderList(); renderKpis(); }).catch(fail);
 }
-function renderKpis() {
-  var ym = new Date().toISOString().slice(0, 7), sentM = 0, o = 0, c = 0, t = 0, u = 0;
-  S.camps.forEach(function (x) {
-    if (x.status === 'draft') return;
-    if (x.status === 'ready') return;
-    if (String(x.sentAt).slice(0, 7) === ym) sentM += x.sent;
-    if (x.opened != null) { t += x.sent; o += x.opened; c += x.clicked; }
-    u += x.unsub || 0;
-  });
-  $('k1').innerHTML = sentM + '<small>通</small>'; $('k2').textContent = pct(o, t); $('k3').textContent = pct(c, t); $('k4').innerHTML = u + '<small>件</small>';
+// ---- 期間（送信日で絞る。下書き・送信待ちは作成日） ----
+function ymdL(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function fmtYmd(s) { return String(s).slice(0, 10).replace(/-/g, '/'); }
+function periodRange() {
+  var v = $('listPeriod').value, n = new Date(), y = n.getFullYear(), m = n.getMonth();
+  if (v === 'm0') return [ymdL(new Date(y, m, 1)), ymdL(new Date(y, m + 1, 0)), '今月'];
+  if (v === 'm1') return [ymdL(new Date(y, m - 1, 1)), ymdL(new Date(y, m, 0)), '先月'];
+  if (v === 'd30') return [ymdL(new Date(n - 29 * 864e5)), ymdL(n), '直近30日'];
+  if (v === 'd90') return [ymdL(new Date(n - 89 * 864e5)), ymdL(n), '直近90日'];
+  if (v === 'y0') return [y + '-01-01', y + '-12-31', '今年'];
+  if (v === 'custom') { var a = $('pFrom').value || '0000-00-00', b = $('pTo').value || '9999-99-99'; if (a > b) { var t = a; a = b; b = t; } return [a, b, ($('pFrom').value ? fmtYmd($('pFrom').value) : '') + '〜' + ($('pTo').value ? fmtYmd($('pTo').value) : '')]; }
+  return null;
 }
+function campDay(x) { return String(((x.status === 'draft' || x.status === 'ready') ? x.created : (x.sentAt || x.created)) || '').slice(0, 10); }
+function inPeriod(x) { var r = periodRange(); if (!r) return true; var d = campDay(x); return d >= r[0] && d <= r[1]; }
+function savePrefs() { try { localStorage.setItem('dm-list-prefs', JSON.stringify({ p: $('listPeriod').value, f: $('pFrom').value, t: $('pTo').value, o: $('listOwner').value })); } catch (e) {} }
+function loadPrefs() { try { var o = JSON.parse(localStorage.getItem('dm-list-prefs') || 'null'); if (o) { if (o.p) $('listPeriod').value = o.p; $('pFrom').value = o.f || ''; $('pTo').value = o.t || ''; if (o.o && [].some.call($('listOwner').options, function (op) { return op.value === o.o; })) $('listOwner').value = o.o; } } catch (e) {} $('periodCustom').classList.toggle('hide', $('listPeriod').value !== 'custom'); }
+// 送った配信（送信済み・送信中）を足す。開封・クリックは記録を読めた配信だけで率を出す
+function sumUp(list) {
+  var r = { camps: 0, sent: 0, base: 0, opened: 0, clicked: 0, unsub: 0, nostat: 0 };
+  list.forEach(function (x) {
+    if (x.status !== 'sent' && x.status !== 'sending') return;
+    r.camps++; r.sent += x.sent; r.unsub += x.unsub || 0;
+    if (x.opened != null) { r.base += x.sent; r.opened += x.opened; r.clicked += x.clicked || 0; } else r.nostat++;
+  });
+  return r;
+}
+function renderKpis() {
+  var ow = $('listOwner').value, pr = periodRange();
+  var r = sumUp(S.camps.filter(function (x) { return (!ow || x.ownerEmail === ow) && inPeriod(x); }));
+  $('k1').innerHTML = r.sent + '<small>通</small>';
+  $('k2').innerHTML = r.base ? r.opened + '<small>人 ・ ' + pct(r.opened, r.base) + '</small>' : '−';
+  $('k3').innerHTML = r.base ? r.clicked + '<small>人 ・ ' + pct(r.clicked, r.base) + '</small>' : '−';
+  $('k4').innerHTML = r.unsub + '<small>件</small>';
+  var who = ow ? ($('listOwner').selectedOptions[0] || {}).textContent : (S.me && S.me.isAdmin ? '全員' : '自分');
+  $('kpiNote').textContent = '集計: ' + who + '・' + (pr ? pr[2] : 'すべての期間') + '（送信済みの配信 ' + r.camps + ' 件' + (r.nostat ? '・うち ' + r.nostat + ' 件は記録を読めず率から除外' : '') + '。開封率・クリック率＝開いた人・押した人 ÷ 送信数）';
+  renderOwnerStats();
+}
+function renderOwnerStats() {} // 担当ごとの集計表は出さない（2026-11-16 オーナー指示）
 function renderList() {
   var q = $('listQ').value.trim().toLowerCase(), ow = $('listOwner').value;
-  var rows = S.camps.filter(function (x) { return (!q || x.subject.toLowerCase().indexOf(q) >= 0) && (!ow || x.ownerEmail === ow); });
+  var rows = S.camps.filter(function (x) { return (!q || x.subject.toLowerCase().indexOf(q) >= 0) && (!ow || x.ownerEmail === ow) && inPeriod(x); });
   $('listCount').textContent = rows.length + ' 件';
   $('listEmpty').classList.toggle('hide', rows.length > 0);
   var ST = { draft: '下書き', ready: '送信待ち', sending: '送信中', sent: '送信済み' };
@@ -2375,7 +2456,9 @@ $('listDel').onclick = function () {
   if (!confirm(ids.length + ' 件の配信を削除しますか？' + (sentN ? '\n（送信済み ' + sentN + ' 件を含みます。削除すると、その配信の送信・開封・クリックの記録は見られなくなります。送ったメールは取り消せません）' : ''))) return;
   call('deleteCampaigns', ids).then(function (r) { toast(r.deleted + ' 件削除しました'); S.listSel = {}; $('listAllCk').checked = false; return loadList(); }).catch(fail);
 };
-$('listQ').oninput = renderList; $('listOwner').onchange = renderList;
+$('listQ').oninput = renderList; $('listOwner').onchange = function () { savePrefs(); renderList(); renderKpis(); };
+$('listPeriod').onchange = function () { $('periodCustom').classList.toggle('hide', $('listPeriod').value !== 'custom'); savePrefs(); renderList(); renderKpis(); };
+$('pFrom').onchange = $('pTo').onchange = function () { savePrefs(); renderList(); renderKpis(); };
 $('newBtn').onclick = function () { newCompose(); show('compose'); };
 
 // ---------- 配信の結果 ----------
@@ -2547,6 +2630,7 @@ function newCompose() {
   S.compose = { id: '', sel: {} };
   $('cTitle').textContent = '新しい配信'; $('cStatus').textContent = '下書き'; $('cSubject').value = ''; $('cAddr').value = (S.me && S.me.addrStyle) || 'full'; edSet('cBody', S.settings.sample_body || ''); $('pickQ').value = '';
   $('delDraftBtn').classList.add('hide');
+  $('cWhen').value = ''; composeWhenUi(); composeDirty();
   renderLinks(); renderPreview();
 }
 // 「読み込む」の選択肢（自分が見られる配信。新しい順）
@@ -2635,7 +2719,40 @@ function renderPick() {
   updatePickCount();
 }
 function selIds() { return Object.keys(S.compose.sel).filter(function (id) { return pickable().some(function (r) { return r.id === id; }); }); }
-function updatePickCount() { var n = selIds().length; $('pickCount').textContent = n + ' 件を選択'; $('sendHint').textContent = n ? n + ' 件に送ります（今日あと ' + S.quota + ' 通）' : '宛先を選んでください'; $('sendBtn').disabled = !n; }
+function updatePickCount() { var n = selIds().length; $('pickCount').textContent = n + ' 件を選択'; composeDirty(); }
+// 対象を確認する（2026-11-18・まとめて準備と同じく、確認してから送信）
+var CK = { ok: false, ids: '' };
+function composeDirty() {
+  var n = selIds().length; CK.ok = false; $('sendBtn').disabled = true; $('cTargets').innerHTML = '';
+  $('sendHint').textContent = n ? n + ' 件を選択中。「対象を確認する」を押してください' : '宛先を選んでください';
+  $('sendBtn').textContent = $('cWhen').value === 'at' ? '日時を指定して送信する' : '選んだ宛先に送信する';
+}
+$('cCheck').onclick = function () {
+  var ids = selIds(); if (!ids.length) { toast('宛先を選んでください', true); return; }
+  var byId = {}; pickable().forEach(function (r) { byId[r.id] = r; });
+  var list = ids.map(function (id) { return byId[id]; }).filter(Boolean), seen = {}, dup = 0, recent = 0;
+  var uniq = list.filter(function (r) { var k = String(r.email).toLowerCase(); if (seen[k]) { dup++; return false; } seen[k] = 1; if (isRecent(r)) recent++; return true; });
+  var at = composeSendAt(), over = !at && uniq.length > S.quota;
+  $('cTargets').innerHTML = '<div class="hint" style="margin-bottom:6px"><b style="color:var(--text)">' + uniq.length + ' 件</b>に送ります' + (dup ? '（同じアドレス ' + dup + ' 件は1通にまとめます）' : '') + (recent ? '・うち直近' + S.recentDays + '日に送った人 ' + recent + ' 件' : '') + '</div>'
+    + '<div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table><thead><tr><th>会社名</th><th>氏名</th><th>メール</th></tr></thead><tbody>'
+    + uniq.map(function (r) { return '<tr><td>' + esc(r.company) + '</td><td>' + esc(r.name || '（ご担当者様）') + '</td><td class="e">' + esc(r.email) + '</td></tr>'; }).join('') + '</tbody></table></div>'
+    + (over ? '<div class="hint" style="color:var(--danger);margin-top:6px">今日の送信上限（あと ' + S.quota + ' 通）を超えます。宛先を減らすか、日時を指定して明日以降に送ってください。</div>' : '');
+  CK.ok = uniq.length > 0 && !over; $('sendBtn').disabled = !CK.ok;
+  $('sendHint').textContent = CK.ok ? (at ? fmtSendAt(at) + 'に ' + uniq.length + ' 件を送ります' : uniq.length + ' 件に送ります（今日あと ' + S.quota + ' 通）') : '送れません';
+};
+// 配信の日時（新しい配信・2026-11-18）
+function composeSendAt() { if ($('cWhen').value !== 'at' || !$('cDate').value) return ''; return $('cDate').value + ' ' + $('cHour').value + ':00'; }
+function composeWhenUi() {
+  var at = $('cWhen').value === 'at';
+  $('cAt').classList.toggle('hide', !at);
+  if (!$('cHour').options.length) { var h = ''; for (var i = 8; i <= 19; i++) h += '<option value="' + (i < 10 ? '0' : '') + i + '"' + (i === 9 ? ' selected' : '') + '>' + i + '時</option>'; $('cHour').innerHTML = h; }
+  if (at && !$('cDate').value) { var t = new Date(Date.now() + 86400000); $('cDate').value = t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
+  var v = composeSendAt(), hh = v ? +v.slice(11, 13) : 0;
+  $('cWhenHint').textContent = !at ? '「送信する」を押すと、すぐにあなたのアドレスから送ります。'
+    : !v ? '日付を選んでください'
+    : fmtSendAt(v) + '（' + hh + ':00〜' + hh + ':59 の間）に、あなたのアドレスから自動で送ります。それまでは配信一覧に「送信待ち」で並び、取り消しもできます。' + (S.autoSend ? '' : '（送信するときに自動送信をオンにします）');
+}
+['cWhen', 'cDate', 'cHour'].forEach(function (id) { $(id).addEventListener('change', function () { composeWhenUi(); composeDirty(); }); });
 $('pickQ').oninput = renderPick; $('pickGenre').onchange = $('pickTag').onchange = renderPick;
 $('pickRecent').onchange = function () { if ($('pickRecent').checked) pickable().forEach(function (r) { if (isRecent(r)) delete S.compose.sel[r.id]; }); renderPick(); }; // 外すときは選択からも外す
 $('pickAll').onclick = function () { document.querySelectorAll('#pick input').forEach(function (ck) { S.compose.sel[ck.dataset.id] = true; }); renderPick(); };
@@ -2646,7 +2763,25 @@ $('testBtn').onclick = function () { $('testBtn').disabled = true; call('sendTes
 $('delDraftBtn').onclick = function () { if (!S.compose.id || !confirm('この下書きを削除しますか？')) return; call('deleteCampaign', S.compose.id).then(function () { toast('削除しました'); newCompose(); show('list'); }).catch(fail); };
 $('sendBtn').onclick = function () {
   var ids = selIds(); if (!ids.length) return;
+  if (!CK.ok) { toast('先に「対象を確認する」を押してください', true); return; }
   var v = compVals(); if (!v.subject.trim() || !v.body.trim()) { toast('件名と本文を入れてください', true); return; }
+  var at = composeSendAt();
+  if ($('cWhen').value === 'at') {
+    if (!at) { toast('配信の日付を選んでください', true); return; }
+    modal('<div class="mh"><h3>日時を指定して送信</h3></div><div class="mb"><p style="margin:0 0 10px"><b>' + esc(fmtSendAt(at)) + '</b>に、<b>' + ids.length + ' 件</b>の宛先へ、あなたのアドレス（' + esc(S.me.email) + '）から自動で送ります。</p>'
+      + '<p class="hint">件名: ' + esc(v.subject) + '<br>それまでは配信一覧に「送信待ち」で並びます。送る前なら、配信一覧から取り消せます。' + (S.autoSend ? '' : '<br><b>自動送信がオフなので、オンにします</b>（1時間ごと・8〜19時に動きます）。') + '</p></div>'
+      + '<div class="mf"><button class="btn" data-close>やめる</button><button class="btn primary" id="goSched">この日時で送る</button></div>', function (bg) {
+      bg.querySelector('[data-close]').onclick = function () { bg.remove(); };
+      bg.querySelector('#goSched').onclick = function () {
+        var go = bg.querySelector('#goSched'); go.disabled = true;
+        (S.autoSend ? Promise.resolve() : call('setAutoSend', true).then(function (r) { S.autoSend = r.autoSend; $('autoSend').checked = true; }))
+          .then(saveDraft).then(function (c) { return call('scheduleSend', c.id, ids, at); })
+          .then(function (r) { toast(fmtSendAt(r.sendAt) + 'に ' + r.total + ' 件を送る予定にしました（配信一覧の「送信待ち」）'); bg.remove(); newCompose(); show('list'); })
+          .catch(function (e) { fail(e); go.disabled = false; });
+      };
+    });
+    return;
+  }
   modal('<div class="mh"><h3>送信の確認</h3></div><div class="mb"><p style="margin:0 0 10px"><b>' + ids.length + ' 件</b>の宛先に、あなたのアドレス（' + esc(S.me.email) + '）から送ります。</p>' +
     '<p class="hint">件名: ' + esc(v.subject) + '<br>送った後は取り消せません。心配なときは先に「テスト送信（自分あて）」で見え方を確かめてください。</p>' +
     '<div id="prog" class="hide" style="margin-top:14px"><div class="progress"><i id="progBar" style="width:0"></i></div><div class="hint" id="progTxt" style="margin-top:6px">送信中…</div></div></div>' +
