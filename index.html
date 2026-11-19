@@ -80,10 +80,7 @@
   .topbar .crumb { color: var(--faint); font-size: 12px; font-family: var(--mono); }
   .topbar .sp { flex: 1; }
   /* 使い方ガイド: 4つのツールとも右上・同じ見た目（QRコード管理に合わせる・2026-11-03） */
-  a.guide-link { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); font-size: 13.5px; font-weight: 500; text-decoration: none; white-space: nowrap; flex: none; }
-  a.guide-link:hover { border-color: #94a3b8; }
-  a.guide-link svg { flex: none; }
-  @media (max-width: 560px) { .topbar { gap: 6px 8px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; } .topbar h1 { white-space: nowrap; } .topbar .crumb { display: none; } .quota { order: 3; white-space: nowrap; } a.guide-link { padding: 0 10px; } } /* スマホ: 見出し＋使い方ガイドを1行目、残り通数を2行目に */
+  @media (max-width: 560px) { .topbar { gap: 6px 8px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; } .topbar h1 { white-space: nowrap; } .topbar .crumb { display: none; } .quota { white-space: nowrap; } } /* スマホ: 見出しと残り通数が入りきらなければ2行に */
   .quota { font-size: 12px; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 4px 12px; }
   .quota b { font-family: var(--mono); color: var(--text); }
   main { padding: 24px 28px 40px; }
@@ -206,6 +203,12 @@
   .tools a svg { width: 16px; height: 16px; flex: none; opacity: .85; }
   .tools a .ext { margin-left: auto; font-size: 11px; color: #64748b; }
   @media (max-width: 900px) { .tools { display: flex; gap: 4px; padding: 6px 10px 10px; border-top: 0; overflow-x: auto; } .tools .tools-h { display: none; } .tools a { padding: 6px 10px; white-space: nowrap; } .tools a .ext { display: none; } }
+  /* 使い方ガイド（左下・アカウント表示の上・新しいタブで開く） */
+  .side-guide { padding: 6px 10px; border-top: 1px solid var(--side-line); }
+  .side-guide a { display: flex; align-items: center; gap: 10px; color: var(--side-text); text-decoration: none; font-size: 13px; padding: 7px 12px; border-radius: 8px; }
+  .side-guide a:hover { background: var(--side-2); color: var(--side-hi); }
+  .side-guide svg { width: 16px; height: 16px; flex: none; opacity: .85; }
+  @media (max-width: 900px) { .side-guide { padding: 0 10px 10px; border-top: 0; } .side-guide a { display: inline-flex; padding: 6px 10px; white-space: nowrap; } }
 .owner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 12px;max-height:260px;overflow:auto;padding:8px 10px;border:1px solid #e3e7ee;border-radius:8px;background:#fafbfd}
 .owner-grid label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;font-weight:normal}
 .owner-grid input{height:auto;flex:none;margin:0}
@@ -224,10 +227,11 @@
     </nav>
     <div id="foldersWrap" class="hide"><div class="side-sec">宛先の担当</div><div id="folders"></div></div><div class="spacer" id="sideSpacer"></div>
     <div class="tools"><div class="tools-h">他のツール</div><a href="https://hirayama-byte.github.io/kcreate-qr-sample/" target="_blank" rel="noopener" title="QRコード管理を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v7h-7"/></svg>QRコード管理<span class="ext">↗</span></a><a href="https://script.google.com/a/macros/k-create.co.jp/s/AKfycbyrmqWNNo1ZBQN4eK43n5H6MEHcQWGnR5qGDSDyXj_cs2BHaGDtw-N1cC-lBITiDyqDQQ/exec" target="_blank" rel="noopener" title="反響事例管理を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>反響事例管理<span class="ext">↗</span></a><a href="https://script.google.com/a/macros/k-create.co.jp/s/AKfycbyR5vFkZm9bwKSyN2lZvcZcUUim_p-zxiiIx22jHiU8TRB81ZxAtyjvB6dtFjg-_GxH/exec" target="_blank" rel="noopener" title="見積作成を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>見積作成<span class="ext">↗</span></a><a href="https://hirayama-byte.github.io/kureyon-haifu-area/map.html#area=ichinomiya" target="_blank" rel="noopener" title="配布エリアMAPを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>配布エリアMAP<span class="ext">↗</span></a><a href="https://drive.google.com/drive/folders/1YoF1dmyjjA3O7a2sFe1EZfC9j9eCiYr5" target="_blank" rel="noopener" title="管理表（Google ドライブ）を新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>管理表<span class="ext">↗</span></a></div>
+    <div class="side-guide"><a id="guideBtn" href="https://hirayama-byte.github.io/kcreate-dm-sample/guide/" target="_blank" rel="noopener" title="使い方ガイドを新しいタブで開く"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"/></svg>使い方ガイド</a></div>
     <button class="me" id="meBtn"><span class="avatar" id="meAv">?</span><span><span id="meName">名前を登録</span><small id="meMail"></small></span><span class="edit-ico">変更</span></button>
   </aside>
   <div class="main">
-    <div class="topbar"><h1 id="title">配信一覧</h1><span class="crumb" id="crumb"></span><span class="sp"></span><span class="quota">今日あと <b id="quota">−</b> 通送れます</span><a class="guide-link" id="guideBtn" href="https://hirayama-byte.github.io/kcreate-dm-sample/guide/" target="_blank" rel="noopener" title="使い方ガイドを新しいタブで開く"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"/></svg>使い方ガイド</a></div>
+    <div class="topbar"><h1 id="title">配信一覧</h1><span class="crumb" id="crumb"></span><span class="sp"></span><span class="quota">今日あと <b id="quota">−</b> 通送れます</span></div>
     <main>
       <!-- 配信一覧 -->
       <section id="list">
@@ -2323,7 +2327,7 @@ function show(tab) {
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach(function (b) { b.onclick = function () { if (b.dataset.tab === 'compose' && S.compose.id === '' && !$('cSubject').value) newCompose(); show(b.dataset.tab); }; });
 
-// 使い方ガイド: 右上のリンク（#guideBtn・サンプル版と同じ場所・架空データの画面写真入り）
+// 使い方ガイド: 左下・アカウント表示の上のリンク（#guideBtn・サンプル版と同じ場所・架空データの画面写真入り）
 var GUIDE_URL = 'https://hirayama-byte.github.io/kcreate-dm-sample/guide/';
 
 // ---------- 起動 ----------
